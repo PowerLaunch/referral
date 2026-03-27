@@ -115,3 +115,4 @@
 | Date | Branch | Action | Notes |
 |------|--------|--------|-------|
 | —    | —      | Project initialized | PROGRESS.md created |
+| 2026-03-27 | feat/scaffold | PR #2 merged | chore: complete project scaffold |
