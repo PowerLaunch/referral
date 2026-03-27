@@ -10,8 +10,16 @@ ALTER TABLE game_config ENABLE ROW LEVEL SECURITY;
 -- profiles: users read and update own row only
 CREATE POLICY "profiles_select_own" ON profiles
   FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
+
 CREATE POLICY "profiles_update_own" ON profiles
-  FOR UPDATE USING (auth.uid() = id);
+  FOR UPDATE USING (auth.uid() = id)
+  WITH CHECK (
+    auth.uid() = id
+    AND is_admin = (SELECT is_admin FROM profiles WHERE id = auth.uid())
+    AND trust_level = (SELECT trust_level FROM profiles WHERE id = auth.uid())
+  );
 
 -- subscriptions: users read own rows only
 CREATE POLICY "subscriptions_select_own" ON subscriptions
@@ -43,4 +51,4 @@ CREATE POLICY "game_config_update_admin" ON game_config
 -- All credit_transactions inserts go through service role in server code.
 -- With RLS enabled and no INSERT policy defined, authenticated users
 -- cannot insert directly. This REVOKE is an extra safety layer.
-REVOKE UPDATE, DELETE ON credit_transactions FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE ON credit_transactions FROM anon, authenticated;

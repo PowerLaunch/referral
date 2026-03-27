@@ -27,6 +27,30 @@
 
 ---
 
+## 📋 Phase 0 — Pre-Launch Checklist
+
+*(Complete before any real users see the app)*
+
+- [ ] Domain purchased and DNS configured
+- [ ] All environment variables set in production
+- [ ] Payment provider agreements signed
+- [ ] Legal compliance review complete
+
+---
+
+## PRE-PHASE 5 CHECKLIST
+
+Complete these before starting PR 5-A:
+
+- [ ] Domain purchased and connected to Vercel project
+- [ ] NEXT_PUBLIC_APP_URL set to final domain in Vercel environment variables
+- [ ] Referral link format confirmed: https://[domain]/ref/[CODE]
+- [ ] Transak/MoonPay chargeback liability confirmed in writing (HD-03)
+- [ ] Triple-A or XanPool GCash support confirmed in writing (HD-02)
+- [ ] Off-ramp business verification complete (HD-04)
+
+---
+
 ## 📋 Up Next (Phase 1 — Foundation)
 - [ ] Connect Supabase project (create project on supabase.com)
 - [ ] Fill in `.env.local` with real keys
@@ -102,6 +126,15 @@
 - No KYC vendor selected yet — hooks will be vendor-agnostic
 - USD only at launch
 - Exchange rate: 100 credits = $1 USD (admin-editable, 30-day change notice)
+
+---
+
+## KEY DECISIONS & OPEN ITEMS
+
+| ID | Decision / Question | Status |
+|----|---------------------|--------|
+| OQ-06 | Domain name: get a real domain before marketing, Vercel subdomain fine for testing | OPEN |
+| OQ-07 | Referral link base URL: update NEXT_PUBLIC_APP_URL in .env.local before Phase 5 — links must use final domain before any real users see them | OPEN |
 
 ---
 
