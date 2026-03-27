@@ -19,6 +19,12 @@ CREATE POLICY "profiles_update_own" ON profiles
     auth.uid() = id
     AND is_admin = (SELECT is_admin FROM profiles WHERE id = auth.uid())
     AND trust_level = (SELECT trust_level FROM profiles WHERE id = auth.uid())
+    AND verified_kyc_hash IS NOT DISTINCT FROM
+        (SELECT verified_kyc_hash FROM profiles WHERE id = auth.uid())
+    AND device_fingerprint IS NOT DISTINCT FROM
+        (SELECT device_fingerprint FROM profiles WHERE id = auth.uid())
+    AND referral_code = (SELECT referral_code FROM profiles WHERE id = auth.uid())
+    AND email = (SELECT email FROM profiles WHERE id = auth.uid())
   );
 
 -- subscriptions: users read own rows only
@@ -34,8 +40,10 @@ CREATE POLICY "credit_transactions_select_own" ON credit_transactions
   FOR SELECT USING (auth.uid() = user_id);
 
 -- game_config: all authenticated users can read
+DROP POLICY IF EXISTS "game_config_select_authenticated" ON game_config;
+
 CREATE POLICY "game_config_select_authenticated" ON game_config
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT TO authenticated USING (true);
 
 -- game_config: only admins can update
 CREATE POLICY "game_config_update_admin" ON game_config

@@ -3,7 +3,7 @@
 
 -- profiles
 CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   referral_code TEXT UNIQUE NOT NULL,
   verified_kyc_hash TEXT UNIQUE,
@@ -49,6 +49,7 @@ CREATE INDEX idx_credit_transactions_user_id ON credit_transactions(user_id);
 -- game_config (single row, seeded with defaults)
 CREATE TABLE game_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  singleton BOOLEAN NOT NULL DEFAULT true UNIQUE,
   min_gameplay_minutes INTEGER NOT NULL DEFAULT 10,
   signup_bonus_amount INTEGER NOT NULL DEFAULT 0,
   signup_bonus_label TEXT NOT NULL DEFAULT 'credits',
