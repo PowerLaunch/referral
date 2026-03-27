@@ -1,109 +1,35 @@
-# Referral Platform — Cursor Rules
-# Always read this file before starting any task.
-# Also read SPEC.md and PROGRESS.md before starting any feature work.
+# REFERRAL APP — CURSOR RULES
+# Read this file, SPEC.md, and PROGRESS.md before every task.
 
----
-
-## Project Overview
-This is a white-label referral-as-a-service platform with a shell app and casual games.
-- Users earn credits by referring friends who engage with games
-- Credits cash out as real USD via Stripe Connect
-- Single-tenant first (one game), multi-tenant later
-
----
-
-## Tech Stack
-- Framework: Next.js 15 (App Router)
-- Language: TypeScript (strict mode — no `any`)
-- Styling: Tailwind CSS v4
-- Database: Supabase (Postgres)
-- Auth: Supabase Auth
-- Hosting: Vercel
-- Email: Resend
-- Payouts: Stripe Connect
-- Rate limiting: Upstash Redis
-- IDE: Cursor with Claude
-
----
-
-## Monorepo Structure
-```
+## Project structure
 referral/
 ├── apps/
-│   ├── shell/        ← shell/test client (Next.js)
-│   └── game-1/       ← first game (Next.js, added later)
+│   ├── shell/     ← Next.js 15 shell game (Tusok-Tusok Tycoon)
+│   └── game-1/    ← future games added here, backend untouched
 ├── packages/
-│   └── api/          ← shared referral backend & API routes
-├── SPEC.md           ← full project specification (source of truth)
-├── PROGRESS.md       ← what's done, what's next, known issues
-└── .cursorrules      ← this file
-```
+│   └── api/       ← shared backend: referral engine, payments, fraud, auth
+├── docs/          ← scope and PR plan documents
+├── SPEC.md        ← full product specification
+├── PROGRESS.md    ← current build status (update after every PR)
+└── .cursorrules   ← this file
 
----
+## Non-negotiable rules
+- Always read PROGRESS.md at the start of any session before doing anything else
+- Always use TypeScript strict mode
+- Never hardcode secrets — use environment variables only
+- Never put Supabase service role key on the client side (SUPABASE_SERVICE_ROLE_KEY is server-only)
+- Always use the App Router (never pages/)
+- All API routes live in apps/shell/app/api/
+- Shared backend logic lives in packages/api/src/
+- The game (apps/shell) must NEVER import directly from packages/api — use API routes only
+- All terminal work, git operations, and PR creation are handled by the agent — zero manual steps
+- SQL migrations run via Supabase CLI (supabase db push) — never ask the user to run SQL manually
+- After every PR merge, update PROGRESS.md: set Last Completed PR, Next PR, update PR log row to MERGED with date, append to Session Log
 
-## Golden Rules (follow every single time)
-1. Always read `.cursorrules`, `SPEC.md`, and `PROGRESS.md` before starting any feature.
-2. Every Cursor task must end with: `Commit and push to [branch-name] and open a PR.`
-3. This is a code change task only — do not investigate or research.
-4. Never use `any` in TypeScript. Always type everything explicitly.
-5. Always mark optional fields with `?` — do not assume all fields are required.
-6. Never duplicate logic that already exists — find and import it instead.
-7. Always use the `SUPABASE_SERVICE_ROLE_KEY` (not the anon key) for server-side API routes.
-8. **IMPORTANT:** Supabase SQL migrations must be run MANUALLY in the Supabase SQL editor before merging any PR that includes schema changes. Cursor cannot do this automatically.
-
----
-
-## Branch Naming
-- Features: `feat/short-description`
-- Bug fixes: `fix/short-description`
-- Database changes: `db/short-description`
-
----
-
-## API Conventions
-- All API routes live under `/api/v1/`
-- All endpoints require authentication unless explicitly marked public
-- All responses follow: `{ success: boolean, data?: any, error?: string }`
-- Idempotency keys must be included for all credit/cashout operations
-
----
-
-## Supabase Conventions
-- Never bypass Row Level Security (RLS) from the client
-- Use service role key only in server-side API routes
-- All DB changes go through migration files — never edit schema manually in dashboard
-- Remind Tony to run migrations in Supabase SQL editor before merging
-
----
-
-## TypeScript Conventions
-- Use `interface` for object shapes, `type` for unions/intersections
-- All API request/response types must be defined in `packages/api/types/`
-- No implicit returns — always return explicitly
-
----
-
-## Credits & Finance Rules (from SPEC.md)
-- 100 credits = $1 USD (fixed exchange rate, stored in admin config)
-- Minimum cashout: 1,000 credits ($10)
-- All cashouts >= 10,000 credits ($100) go to UNDER_REVIEW automatically
-- Never apply exchange rate changes retroactively
-
----
-
-## Cursor Command Template
-Use this structure for every task you give Cursor:
-
-```
-Read .cursorrules, SPEC.md, and PROGRESS.md first. This is a code change task only.
-
+## Cursor prompt format
+Read .cursorrules first. [This is a code change task only — do not investigate.]
 On branch [branch-name], [describe the change]:
-
-1. [Specific change #1 — file, location, what to do]
-2. [Specific change #2]
-
-[Any constraints or rules to follow]
-
-After completing, update PROGRESS.md to reflect what was done.
+1. [Specific change — file, location, what to do]
+2. [Specific change]
+[Constraints]
 Commit and push to [branch-name] and open a PR.
-```

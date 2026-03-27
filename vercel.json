@@ -1,0 +1,12 @@
+{
+  "buildCommand": "cd apps/shell && npm run build",
+  "outputDirectory": "apps/shell/.next",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/confirm-referrals",  "schedule": "0 2 * * *"      },
+    { "path": "/api/cron/recurring-payouts",  "schedule": "0 3 1 * *"      },
+    { "path": "/api/cron/fraud-scan",         "schedule": "*/15 * * * *"   },
+    { "path": "/api/cron/kyc-cleanup",        "schedule": "0 4 * * *"      }
+  ]
+}

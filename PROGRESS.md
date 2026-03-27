@@ -99,3 +99,9 @@
 - No KYC vendor selected yet — hooks will be vendor-agnostic
 - USD only at launch
 - Exchange rate: 100 credits = $1 USD (admin-editable, 30-day change notice)
+
+---
+
+## 🔧 Environment & Config Notes
+- **GitHub repo:** https://github.com/PowerLaunch/referral.git
+- **Monorepo path:** C:\Users\tonyl\referral
