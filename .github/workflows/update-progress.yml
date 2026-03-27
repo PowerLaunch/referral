@@ -3,6 +3,7 @@ name: Update PROGRESS.md on PR merge
 on:
   pull_request:
     types: [closed]
+    branches: [main]
 
 jobs:
   update-progress:
