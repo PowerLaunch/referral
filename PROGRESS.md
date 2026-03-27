@@ -126,3 +126,4 @@
 |------|--------|--------|-------|
 | —    | —      | Project initialized | PROGRESS.md created |
 | 2026-03-27 | feat/scaffold | PR #2 merged | chore: complete project scaffold |
+| 2026-03-27 | feat/project-setup | PR #3 merged | feat: set up Turborepo monorepo with build pipeline |
