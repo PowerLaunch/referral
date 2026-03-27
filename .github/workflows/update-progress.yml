@@ -23,7 +23,8 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           DATE=$(date +%Y-%m-%d)
-          echo "| ${DATE} | ${BRANCH} | PR #${PR_NUM} merged | ${PR_TITLE} |" >> PROGRESS.md
+          CLEAN_TITLE="${PR_TITLE//|/}"
+          echo "| ${DATE} | ${BRANCH} | PR #${PR_NUM} merged | ${CLEAN_TITLE} |" >> PROGRESS.md
       - name: Commit PROGRESS.md update
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
