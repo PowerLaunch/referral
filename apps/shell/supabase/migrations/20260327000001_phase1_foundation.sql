@@ -17,7 +17,7 @@ CREATE TABLE profiles (
 -- subscriptions
 CREATE TABLE subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL CHECK (status IN ('active', 'cancelled', 'past_due')),
   current_period_end TIMESTAMPTZ,
   transak_subscription_id TEXT,
@@ -28,7 +28,7 @@ CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
 -- user_credits (one row per user per credit type)
 CREATE TABLE user_credits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL DEFAULT 0 CHECK (amount >= 0),
   type TEXT NOT NULL CHECK (type IN ('CASH_BALANCE', 'GAME_CREDITS')),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -38,7 +38,7 @@ CREATE TABLE user_credits (
 -- credit_transactions (append-only ledger — no UPDATE or DELETE ever)
 CREATE TABLE credit_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('CASH_BALANCE', 'GAME_CREDITS')),
   reason TEXT NOT NULL,
