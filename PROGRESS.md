@@ -104,4 +104,4 @@
 
 ## 🔧 Environment & Config Notes
 - **GitHub repo:** https://github.com/PowerLaunch/referral.git
-- **Monorepo path:** C:\Users\tonyl\referral
+- **Monorepo path:** See your local clone

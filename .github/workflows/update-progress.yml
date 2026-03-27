@@ -16,13 +16,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: main
       - name: Append merge to PROGRESS.md session log
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          BRANCH="${{ github.event.pull_request.head.ref }}"
           DATE=$(date +%Y-%m-%d)
-          PR_NUM="${{ github.event.pull_request.number }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
           echo "| ${DATE} | ${BRANCH} | PR #${PR_NUM} merged | ${PR_TITLE} |" >> PROGRESS.md
       - name: Commit PROGRESS.md update
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
