@@ -105,3 +105,13 @@
 ## 🔧 Environment & Config Notes
 - **GitHub repo:** https://github.com/PowerLaunch/referral.git
 - **Monorepo path:** See your local clone
+
+---
+
+## SESSION LOG
+
+*(Auto-updated by GitHub Actions on every PR merge)*
+
+| Date | Branch | Action | Notes |
+|------|--------|--------|-------|
+| —    | —      | Project initialized | PROGRESS.md created |
