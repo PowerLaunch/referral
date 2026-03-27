@@ -6,7 +6,9 @@
 
 ## Current Status
 **Phase:** Phase 1 — Foundation (in progress)
-**Last updated:** 2026-03-25
+**Last updated:** 2026-03-27
+**Last Completed PR:** 1-A (feat/project-setup)
+**Next PR:** 1-B (feat/database-schema)
 
 ---
 
@@ -105,6 +107,14 @@
 ## 🔧 Environment & Config Notes
 - **GitHub repo:** https://github.com/PowerLaunch/referral.git
 - **Monorepo path:** See your local clone
+
+---
+
+## PR LOG
+
+| PR ID | Branch | Status | Date | Description |
+|-------|--------|--------|------|-------------|
+| 1-A | feat/project-setup | IN PROGRESS | 2026-03-27 | Turborepo monorepo setup |
 
 ---
 

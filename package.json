@@ -1,14 +1,18 @@
 {
   "name": "referral",
   "private": true,
+  "packageManager": "npm@11.6.2",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm -w shell run dev",
-    "build": "npm -w shell run build",
-    "start": "npm -w shell run start",
-    "lint": "npm -w shell run lint"
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.20"
   }
 }
