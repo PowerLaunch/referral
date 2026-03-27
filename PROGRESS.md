@@ -7,8 +7,9 @@
 ## Current Status
 **Phase:** Phase 1 — Foundation (in progress)
 **Last updated:** 2026-03-27
-**Last Completed PR:** 1-A (feat/project-setup)
-**Next PR:** 1-B (feat/database-schema)
+**Last Completed PR:** 1-B (feat/database-schema)
+**Next PR:** 1-C (feat/auth)
+**Overall Progress:** 2 / 35 PRs complete
 
 ---
 
@@ -114,7 +115,8 @@
 
 | PR ID | Branch | Status | Date | Description |
 |-------|--------|--------|------|-------------|
-| 1-A | feat/project-setup | IN PROGRESS | 2026-03-27 | Turborepo monorepo setup |
+| 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
+| 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
 
 ---
 
@@ -127,3 +129,4 @@
 | —    | —      | Project initialized | PROGRESS.md created |
 | 2026-03-27 | feat/scaffold | PR #2 merged | chore: complete project scaffold |
 | 2026-03-27 | feat/project-setup | PR #3 merged | feat: set up Turborepo monorepo with build pipeline |
+| 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
