@@ -6,7 +6,10 @@
 
 ## Current Status
 **Phase:** Phase 1 — Foundation (in progress)
-**Last updated:** 2026-03-25
+**Last updated:** 2026-03-28
+**Last Completed PR:** 1-C (feat/auth)
+**Next PR:** 1-D (feat/referral-code-gen)
+**Overall Progress:** 3 / 35 PRs complete
 
 ---
 
@@ -21,6 +24,30 @@
 
 ## 🔄 In Progress
 - [ ] Phase 1 remaining setup
+
+---
+
+## 📋 Phase 0 — Pre-Launch Checklist
+
+*(Complete before any real users see the app)*
+
+- [ ] Domain purchased and DNS configured
+- [ ] All environment variables set in production
+- [ ] Payment provider agreements signed
+- [ ] Legal compliance review complete
+
+---
+
+## PRE-PHASE 5 CHECKLIST
+
+Complete these before starting PR 5-A:
+
+- [ ] Domain purchased and connected to Vercel project
+- [ ] NEXT_PUBLIC_APP_URL set to final domain in Vercel environment variables
+- [ ] Referral link format confirmed: https://[domain]/ref/[CODE]
+- [ ] Transak/MoonPay chargeback liability confirmed in writing (HD-03)
+- [ ] Triple-A or XanPool GCash support confirmed in writing (HD-02)
+- [ ] Off-ramp business verification complete (HD-04)
 
 ---
 
@@ -102,9 +129,28 @@
 
 ---
 
+## KEY DECISIONS & OPEN ITEMS
+
+| ID | Decision / Question | Status |
+|----|---------------------|--------|
+| OQ-06 | Domain name: get a real domain before marketing, Vercel subdomain fine for testing | OPEN |
+| OQ-07 | Referral link base URL: update NEXT_PUBLIC_APP_URL in .env.local before Phase 5 — links must use final domain before any real users see them | OPEN |
+
+---
+
 ## 🔧 Environment & Config Notes
 - **GitHub repo:** https://github.com/PowerLaunch/referral.git
 - **Monorepo path:** See your local clone
+
+---
+
+## PR LOG
+
+| PR ID | Branch | Status | Date | Description |
+|-------|--------|--------|------|-------------|
+| 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
+| 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
+| 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
 
 ---
 
@@ -115,3 +161,8 @@
 | Date | Branch | Action | Notes |
 |------|--------|--------|-------|
 | —    | —      | Project initialized | PROGRESS.md created |
+| 2026-03-27 | feat/scaffold | PR #2 merged | chore: complete project scaffold |
+| 2026-03-27 | feat/project-setup | PR #3 merged | feat: set up Turborepo monorepo with build pipeline |
+| 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
+| 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
+| 2026-03-28 | feat/auth | PR 1-C merged | Auth, signup, login, email verification, middleware merged |
