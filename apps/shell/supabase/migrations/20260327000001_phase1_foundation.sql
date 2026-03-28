@@ -62,5 +62,18 @@ CREATE TABLE game_config (
 INSERT INTO game_config (min_gameplay_minutes, signup_bonus_amount, signup_bonus_label)
 VALUES (10, 0, 'credits');
 
+-- Enable moddatetime extension for auto-updating updated_at columns
+CREATE EXTENSION IF NOT EXISTS moddatetime SCHEMA extensions;
+
+-- Auto-update updated_at on user_credits
+CREATE TRIGGER handle_updated_at_user_credits
+  BEFORE UPDATE ON user_credits
+  FOR EACH ROW EXECUTE PROCEDURE extensions.moddatetime(updated_at);
+
+-- Auto-update updated_at on game_config
+CREATE TRIGGER handle_updated_at_game_config
+  BEFORE UPDATE ON game_config
+  FOR EACH ROW EXECUTE PROCEDURE extensions.moddatetime(updated_at);
+
 -- Comment: Self-referral prevention (CHECK referrer_id != referee_id)
 -- will be added to the referrals table in Phase 2 PR 2-A.

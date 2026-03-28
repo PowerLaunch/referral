@@ -11,20 +11,21 @@ ALTER TABLE game_config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "profiles_select_own" ON profiles
   FOR SELECT USING (auth.uid() = id);
 
+-- Locked fields: is_admin, trust_level, verified_kyc_hash,
+-- referral_code, created_at (server-only writes).
+-- Unlocked fields: email, device_fingerprint (client-safe updates).
 DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
 
 CREATE POLICY "profiles_update_own" ON profiles
-  FOR UPDATE USING (auth.uid() = id)
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = id)
   WITH CHECK (
     auth.uid() = id
     AND is_admin = (SELECT is_admin FROM profiles WHERE id = auth.uid())
     AND trust_level = (SELECT trust_level FROM profiles WHERE id = auth.uid())
     AND verified_kyc_hash IS NOT DISTINCT FROM
         (SELECT verified_kyc_hash FROM profiles WHERE id = auth.uid())
-    AND device_fingerprint IS NOT DISTINCT FROM
-        (SELECT device_fingerprint FROM profiles WHERE id = auth.uid())
     AND referral_code = (SELECT referral_code FROM profiles WHERE id = auth.uid())
-    AND email = (SELECT email FROM profiles WHERE id = auth.uid())
     AND created_at = (SELECT created_at FROM profiles WHERE id = auth.uid())
   );
 
