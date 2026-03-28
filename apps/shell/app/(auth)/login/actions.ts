@@ -28,5 +28,5 @@ export async function loginAction(formData: FormData) {
     return { redirect: `/verify-email?email=${encodeURIComponent(email)}` }
   }
 
-  redirect('/dashboard')
+  return { redirect: '/dashboard' }
 }

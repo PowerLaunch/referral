@@ -11,13 +11,14 @@ SET search_path = public
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  attempt_count INT := 0;
-  max_attempts INT := 3;
   new_code TEXT;
+  retries INTEGER := 0;
+  max_attempts INTEGER := 5;
+  constraint_name TEXT;
 BEGIN
-  -- Retry up to 3 times in case of referral_code collision
+  -- Retry up to 5 times in case of referral_code collision
   LOOP
-    attempt_count := attempt_count + 1;
+    retries := retries + 1;
 
     -- Generate 8-char hex referral code
     new_code := encode(gen_random_bytes(4), 'hex');
@@ -30,8 +31,13 @@ BEGIN
       EXIT;
     EXCEPTION
       WHEN unique_violation THEN
-        -- Collision on referral_code — retry if attempts remain
-        IF attempt_count >= max_attempts THEN
+        -- Only retry for referral_code collisions, not PK or other
+        -- unique constraint violations
+        GET STACKED DIAGNOSTICS constraint_name = CONSTRAINT_NAME;
+        IF constraint_name != 'profiles_referral_code_key' THEN
+          RAISE; -- Re-raise immediately for non-referral_code violations
+        END IF;
+        IF retries >= max_attempts THEN
           RAISE EXCEPTION 'Failed to generate unique referral code after % attempts', max_attempts;
         END IF;
         -- Continue loop to retry
