@@ -2,30 +2,30 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 
 export default function VerifyEmailPage() {
   const [resending, setResending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
+  const searchParams = useSearchParams()
+  const email = searchParams.get('email')
 
   const handleResend = async () => {
+    if (!email) {
+      setMessage('No email found. Please sign up again.')
+      return
+    }
+
     setResending(true)
     setMessage(null)
 
     const supabase = createClient()
 
-    // Get current user email from session
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user?.email) {
-      setMessage('No email found. Please sign up again.')
-      setResending(false)
-      return
-    }
-
     const { error } = await supabase.auth.resend({
       type: 'signup',
-      email: user.email,
+      email,
     })
 
     if (error) {
@@ -48,14 +48,35 @@ export default function VerifyEmailPage() {
     setResending(false)
   }
 
+  if (!email) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="w-full max-w-md space-y-8 p-8 text-center">
+          <div>
+            <h2 className="text-3xl font-bold">Email verification required</h2>
+            <p className="mt-4 text-gray-600">
+              Please sign up again to receive a verification email.
+            </p>
+          </div>
+          <Link
+            href="/signup"
+            className="inline-block w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
+            Go to sign up
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-md space-y-8 p-8 text-center">
         <div>
           <h2 className="text-3xl font-bold">Check your email</h2>
           <p className="mt-4 text-gray-600">
-            We've sent you a verification link. Click the link in your email to
-            verify your account.
+            We've sent a verification link to <strong>{email}</strong>. Click
+            the link in your email to verify your account.
           </p>
         </div>
 

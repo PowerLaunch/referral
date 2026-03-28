@@ -2,12 +2,13 @@
 
 import { loginAction } from './actions'
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   useEffect(() => {
     const errorParam = searchParams.get('error')
@@ -26,7 +27,9 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget)
     const result = await loginAction(formData)
 
-    if (result?.error) {
+    if (result?.redirect) {
+      router.push(result.redirect)
+    } else if (result?.error) {
       setError(result.error)
     }
   }

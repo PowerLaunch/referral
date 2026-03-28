@@ -2,11 +2,13 @@
 
 import { signupAction } from './actions'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const router = useRouter()
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -30,7 +32,9 @@ export default function SignupPage() {
     const formData = new FormData(e.currentTarget)
     const result = await signupAction(formData)
 
-    if (result?.error) {
+    if (result?.redirect) {
+      router.push(result.redirect)
+    } else if (result?.error) {
       setError(result.error)
     }
   }

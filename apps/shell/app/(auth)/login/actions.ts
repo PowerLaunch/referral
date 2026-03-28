@@ -15,13 +15,17 @@ export async function loginAction(formData: FormData) {
   })
 
   if (error) {
+    // Handle unconfirmed email specifically
+    if (error.code === 'email_not_confirmed') {
+      return { redirect: `/verify-email?email=${encodeURIComponent(email)}` }
+    }
     // Generic error message — never reveal which field is wrong
     return { error: 'Invalid email or password' }
   }
 
   // Check if email is verified
   if (data.user && !data.user.email_confirmed_at) {
-    redirect('/verify-email')
+    return { redirect: `/verify-email?email=${encodeURIComponent(email)}` }
   }
 
   redirect('/dashboard')

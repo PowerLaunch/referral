@@ -9,7 +9,7 @@ export async function signupAction(formData: FormData) {
 
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
   })
@@ -20,5 +20,6 @@ export async function signupAction(formData: FormData) {
     return { error: 'Something went wrong. Please try again.' }
   }
 
-  redirect('/verify-email')
+  // Pass email through URL for resend functionality
+  return { redirect: `/verify-email?email=${encodeURIComponent(data.user?.email || email)}` }
 }
