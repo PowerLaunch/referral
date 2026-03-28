@@ -163,3 +163,4 @@ Complete these before starting PR 5-A:
 | 2026-03-27 | feat/scaffold | PR #2 merged | chore: complete project scaffold |
 | 2026-03-27 | feat/project-setup | PR #3 merged | feat: set up Turborepo monorepo with build pipeline |
 | 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
+| 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
