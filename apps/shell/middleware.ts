@@ -32,7 +32,8 @@ export async function middleware(request: NextRequest) {
 
   // Session exists but email not confirmed → redirect to verify-email
   if (!user.email_confirmed_at) {
-    return redirectWithCookies('/verify-email')
+    const verifyUrl = `/verify-email?email=${encodeURIComponent(user.email ?? '')}`
+    return redirectWithCookies(verifyUrl)
   }
 
   // Session exists and email confirmed → allow through
