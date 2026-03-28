@@ -47,6 +47,6 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- Allow the trigger (SECURITY DEFINER) to insert into profiles
-CREATE POLICY "profiles_insert_trigger" ON profiles
-  FOR INSERT WITH CHECK (true);
+-- No INSERT policy on profiles. The handle_new_user() trigger runs as
+-- SECURITY DEFINER (postgres superuser) and bypasses RLS automatically.
+-- Direct client inserts to profiles are intentionally blocked.
