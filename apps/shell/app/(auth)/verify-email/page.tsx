@@ -1,11 +1,11 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const [resending, setResending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
@@ -32,7 +32,6 @@ export default function VerifyEmailPage() {
       setMessage('Failed to resend email. Please try again.')
     } else {
       setMessage('Verification email sent! Check your inbox.')
-      // Start 60-second countdown
       setCountdown(60)
       const interval = setInterval(() => {
         setCountdown((prev) => {
@@ -75,7 +74,7 @@ export default function VerifyEmailPage() {
         <div>
           <h2 className="text-3xl font-bold">Check your email</h2>
           <p className="mt-4 text-gray-600">
-            We've sent a verification link to <strong>{email}</strong>. Click
+            We&apos;ve sent a verification link to <strong>{email}</strong>. Click
             the link in your email to verify your account.
           </p>
         </div>
@@ -94,10 +93,24 @@ export default function VerifyEmailPage() {
           {countdown > 0
             ? `Resend in ${countdown}s`
             : resending
-            ? 'Sending...'
-            : 'Resend verification email'}
+              ? 'Sending...'
+              : 'Resend verification email'}
         </button>
       </div>
     </div>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-sm text-gray-600">Loading…</p>
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
   )
 }
