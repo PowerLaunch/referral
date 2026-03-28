@@ -3,13 +3,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
   // Refresh session and get response with updated cookies
-  const supabaseResponse = await updateSession(request)
+  const { response: supabaseResponse, user } = await updateSession(request)
 
   // Helper to preserve session cookies on redirects
   function redirectWithCookies(url: string): NextResponse {
     const redirectResponse = NextResponse.redirect(new URL(url, request.url))
     supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value)
+      redirectResponse.cookies.set(cookie)
     })
     return redirectResponse
   }
@@ -24,13 +24,6 @@ export async function middleware(request: NextRequest) {
   if (isPublicPath) {
     return supabaseResponse
   }
-
-  // Check auth state for protected routes
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
   // No session → redirect to login
   if (!user) {

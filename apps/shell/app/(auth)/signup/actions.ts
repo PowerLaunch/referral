@@ -15,9 +15,9 @@ export async function signupAction(formData: FormData) {
   })
 
   if (error) {
-    // Never reveal if email already exists — prevent enumeration
-    // Always show same message to avoid leaking account existence
-    return { error: 'Check your email for a confirmation link' }
+    // Generic error for genuine failures (network, rate limiting, etc.)
+    // Supabase handles email enumeration prevention server-side
+    return { error: 'Something went wrong. Please try again.' }
   }
 
   redirect('/verify-email')

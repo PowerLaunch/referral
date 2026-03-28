@@ -1,11 +1,24 @@
 'use client'
 
 import { loginAction } from './actions'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'verification_failed') {
+      setError(
+        'Your verification link has expired or is invalid. Please sign in and request a new verification email.'
+      )
+    } else if (errorParam === 'auth_error') {
+      setError('Authentication failed. Please try signing in again.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
