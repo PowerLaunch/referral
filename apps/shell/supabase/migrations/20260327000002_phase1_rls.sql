@@ -25,6 +25,7 @@ CREATE POLICY "profiles_update_own" ON profiles
         (SELECT device_fingerprint FROM profiles WHERE id = auth.uid())
     AND referral_code = (SELECT referral_code FROM profiles WHERE id = auth.uid())
     AND email = (SELECT email FROM profiles WHERE id = auth.uid())
+    AND created_at = (SELECT created_at FROM profiles WHERE id = auth.uid())
   );
 
 -- subscriptions: users read own rows only

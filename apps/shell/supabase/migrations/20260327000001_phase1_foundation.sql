@@ -38,7 +38,9 @@ CREATE TABLE user_credits (
 -- credit_transactions (append-only ledger — no UPDATE or DELETE ever)
 CREATE TABLE credit_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  -- ON DELETE RESTRICT is intentional. Financial ledger rows must be
+  -- anonymized before user deletion. See GDPR soft-delete (Phase 2).
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
   amount INTEGER NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('CASH_BALANCE', 'GAME_CREDITS')),
   reason TEXT NOT NULL,
