@@ -6,10 +6,10 @@
 
 ## Current Status
 **Phase:** Phase 1 — Foundation (in progress)
-**Last updated:** 2026-03-27
-**Last Completed PR:** 1-B (feat/database-schema)
-**Next PR:** 1-C (feat/auth)
-**Overall Progress:** 2 / 35 PRs complete
+**Last updated:** 2026-03-28
+**Last Completed PR:** 1-C (feat/auth)
+**Next PR:** 1-D (feat/referral-code-gen)
+**Overall Progress:** 3 / 35 PRs complete
 
 ---
 
@@ -150,6 +150,7 @@ Complete these before starting PR 5-A:
 |-------|--------|--------|------|-------------|
 | 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
 | 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
+| 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
 
 ---
 
@@ -164,3 +165,4 @@ Complete these before starting PR 5-A:
 | 2026-03-27 | feat/project-setup | PR #3 merged | feat: set up Turborepo monorepo with build pipeline |
 | 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
 | 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
+| 2026-03-28 | feat/auth | PR 1-C merged | Auth, signup, login, email verification, middleware merged |
