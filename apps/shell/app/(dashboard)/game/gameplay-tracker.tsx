@@ -13,7 +13,7 @@ interface GameplayTrackerProps {
 export function GameplayTracker({
   initialMinutes,
   targetMinutes,
-}: GameplayTrackerProps): JSX.Element {
+}: GameplayTrackerProps) {
   const [minutes, setMinutes] = useState<number>(initialMinutes)
   const activityDetected = useRef<boolean>(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)

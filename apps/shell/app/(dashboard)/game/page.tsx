@@ -7,7 +7,7 @@ import {
   getGameplayProgress,
 } from './actions'
 
-export default async function GamePage(): Promise<JSX.Element> {
+export default async function GamePage() {
   // Fetch all data in parallel
   const [{ isSubscribed }, { minGameplayMinutes }, { totalMinutes }] =
     await Promise.all([

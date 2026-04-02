@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 
-export function DailyPuzzle(): JSX.Element {
+export function DailyPuzzle() {
   const [solved, setSolved] = useState<boolean>(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 

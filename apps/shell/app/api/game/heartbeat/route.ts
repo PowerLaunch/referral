@@ -49,51 +49,28 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    // Step 4 — Rate limit check
-    const { data: session } = await adminClient
-      .from('gameplay_sessions')
-      .select('last_heartbeat_at')
-      .eq('user_id', user.id)
-      .single()
+    // Step 4 — Call RPC (rate limit check is now inside the RPC)
+    const rpcName = activity ? 'increment_gameplay_minute' : 'ping_gameplay'
+    const { data, error } = await adminClient.rpc(rpcName, {
+      p_user_id: user.id,
+    })
 
-    if (session && session.last_heartbeat_at) {
-      const lastHeartbeat = new Date(session.last_heartbeat_at)
-      const now = new Date()
-      const secondsSinceLastHeartbeat =
-        (now.getTime() - lastHeartbeat.getTime()) / 1000
-
-      if (secondsSinceLastHeartbeat < 55) {
-        return Response.json({ ok: false, error: 'Too soon' }, { status: 429 })
-      }
+    if (error) {
+      throw error
     }
 
-    // Step 5 — UPSERT gameplay session using RPC functions
-    let totalMinutes = 0
+    // RPC returns jsonb: { ok: boolean, total_minutes: number, error?: string }
+    const result = data as { ok: boolean; total_minutes: number; error?: string }
 
-    if (activity) {
-      const { data, error } = await adminClient.rpc('increment_gameplay_minute', {
-        p_user_id: user.id,
-      })
-
-      if (error) {
-        throw error
-      }
-
-      totalMinutes = data ?? 0
-    } else {
-      const { data, error } = await adminClient.rpc('ping_gameplay', {
-        p_user_id: user.id,
-      })
-
-      if (error) {
-        throw error
-      }
-
-      totalMinutes = data ?? 0
+    if (!result.ok && result.error === 'Too soon') {
+      return Response.json(
+        { ok: false, error: 'Too soon', total_minutes: result.total_minutes },
+        { status: 429 }
+      )
     }
 
-    // Step 6 — Return total_minutes
-    return Response.json({ ok: true, total_minutes: totalMinutes })
+    // Step 5 — Return total_minutes
+    return Response.json({ ok: true, total_minutes: result.total_minutes })
   } catch (error) {
     console.error('Heartbeat error:', error)
     return Response.json(
