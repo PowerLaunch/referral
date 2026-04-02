@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 1 — Foundation (in progress)
-**Last updated:** 2026-03-28
-**Last Completed PR:** 1-C (feat/auth)
-**Next PR:** 1-D (feat/referral-code-gen)
-**Overall Progress:** 3 / 35 PRs complete
+**Phase:** Phase 2 — Shell App (in progress)
+**Last updated:** 2026-04-03
+**Last Completed PR:** 2-B (feat/shell-app)
+**Next PR:** 2-C (feat/email-templates)
+**Overall Progress:** 6 / 35 PRs complete
 
 ---
 
@@ -151,6 +151,7 @@ Complete these before starting PR 5-A:
 | 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
 | 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
 | 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
+| 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
 
 ---
 
@@ -167,3 +168,5 @@ Complete these before starting PR 5-A:
 | 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
 | 2026-03-28 | feat/auth | PR 1-C merged | Auth, signup, login, email verification, middleware merged |
 | 2026-04-02 | chore/vercel-build-fixes | PR #6 merged | chore: fix Vercel build issues |
+| 2026-04-02 | feat/shell-app | PR 2-B | Shell game: dummy puzzle, heartbeat, gameplay tracking |
+| 2026-04-03 | feat/shell-app | PR 2-B merged | Shell game: dummy puzzle, heartbeat, gameplay tracking, security fixes |
