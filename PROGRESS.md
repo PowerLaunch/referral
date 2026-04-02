@@ -166,3 +166,4 @@ Complete these before starting PR 5-A:
 | 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
 | 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
 | 2026-03-28 | feat/auth | PR 1-C merged | Auth, signup, login, email verification, middleware merged |
+| 2026-04-02 | chore/vercel-build-fixes | PR #6 merged | chore: fix Vercel build issues |
