@@ -59,17 +59,24 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // RPC returns jsonb: { ok: boolean, total_minutes: number, error?: string }
-    const result = data as { ok: boolean; total_minutes: number; error?: string }
+    const rpcResult = data as { ok: boolean; total_minutes?: number; error?: string }
 
-    if (!result.ok && result.error === 'Too soon') {
+    if (!rpcResult.ok) {
+      if (rpcResult.error === 'Too soon') {
+        return Response.json(
+          { ok: false, error: 'Too soon', total_minutes: rpcResult.total_minutes ?? 0 },
+          { status: 429 }
+        )
+      }
+      // Any other RPC failure — log and return 500
+      console.error('Heartbeat RPC failed:', rpcResult.error)
       return Response.json(
-        { ok: false, error: 'Too soon', total_minutes: result.total_minutes },
-        { status: 429 }
+        { ok: false, error: 'Internal error' },
+        { status: 500 }
       )
     }
 
-    // Step 5 — Return total_minutes
-    return Response.json({ ok: true, total_minutes: result.total_minutes })
+    return Response.json({ ok: true, total_minutes: rpcResult.total_minutes })
   } catch (error) {
     console.error('Heartbeat error:', error)
     return Response.json(
