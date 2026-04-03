@@ -2,7 +2,7 @@
 // Trigger functions are called by referral engine (Phase 3), payout system (Phase 3-D/5-B), and fraud middleware (Phase 4-D).
 
 import { Resend } from 'resend'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '../../../apps/shell/lib/supabase/admin'
 
 // Update this domain before launch
 const FROM_EMAIL = 'noreply@yourdomain.com'
@@ -18,20 +18,6 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
-}
-
-// Service role client — server-side only, never expose to client
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error('Missing Supabase environment variables for admin client')
-  }
-
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
 }
 
 /**
@@ -108,6 +94,7 @@ export function templateE1(obfuscatedEmail: string): {
   html: string
 } {
   const subject = 'Someone just used your referral link!'
+  const safeEmail = escapeHtml(obfuscatedEmail)
 
   const html = `
 <!DOCTYPE html>
@@ -122,7 +109,7 @@ export function templateE1(obfuscatedEmail: string): {
     <h1 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Great news!</h1>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-      Someone just signed up using your referral link: <strong>${obfuscatedEmail}</strong>
+      Someone just signed up using your referral link: <strong>${safeEmail}</strong>
     </p>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
