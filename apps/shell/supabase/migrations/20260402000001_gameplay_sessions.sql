@@ -23,10 +23,7 @@ CREATE POLICY "gameplay_sessions_read_own"
 -- No INSERT, UPDATE, or DELETE policies for authenticated users
 -- All writes go through the service role admin client which bypasses RLS
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_gameplay_sessions_user_id
-  ON public.gameplay_sessions(user_id);
-
+-- Index for performance
 CREATE INDEX IF NOT EXISTS idx_gameplay_sessions_last_heartbeat
   ON public.gameplay_sessions(last_heartbeat_at);
 
@@ -39,6 +36,9 @@ DECLARE
   v_total_minutes integer;
   v_seconds_since integer;
 BEGIN
+  -- Acquire advisory lock to serialize concurrent requests for the same user
+  PERFORM pg_advisory_xact_lock(hashtext(p_user_id::text));
+
   -- Read current state with FOR UPDATE lock to prevent concurrent execution
   SELECT last_heartbeat_at, total_minutes
   INTO v_last_heartbeat, v_total_minutes
@@ -83,6 +83,9 @@ DECLARE
   v_total_minutes integer;
   v_seconds_since integer;
 BEGIN
+  -- Acquire advisory lock to serialize concurrent requests for the same user
+  PERFORM pg_advisory_xact_lock(hashtext(p_user_id::text));
+
   SELECT last_heartbeat_at, total_minutes
   INTO v_last_heartbeat, v_total_minutes
   FROM public.gameplay_sessions
