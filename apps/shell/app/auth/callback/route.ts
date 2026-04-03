@@ -84,7 +84,14 @@ export async function GET(request: Request) {
         }
       }
 
-      // Award signup bonus regardless of referral
+      // Award signup bonus on initial email verification only
+      // Guard A: Only run on email verification flow (not recovery/magiclink)
+      const flowType = requestUrl.searchParams.get('type')
+      if (flowType === 'recovery' || flowType === 'magiclink') {
+        // Skip signup bonus for password reset and magic link flows
+        return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+      }
+
       const { data: gameConfig, error: configError } = await createAdminClient()
         .from('game_config')
         .select('signup_bonus_amount')
@@ -95,6 +102,20 @@ export async function GET(request: Request) {
         const adminClient = createAdminClient()
         const signupBonusAmount = gameConfig.signup_bonus_amount
 
+        // Guard B: Idempotency check — prevent duplicate signup bonus
+        const { data: existingBonus } = await adminClient
+          .from('credit_transactions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('reason', 'signup_bonus')
+          .limit(1)
+          .single()
+
+        if (existingBonus) {
+          // Signup bonus already awarded — skip
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+        }
+
         // Ensure user_credits row exists (UPSERT pattern)
         const { error: upsertError } = await adminClient
           .from('user_credits')
@@ -104,9 +125,13 @@ export async function GET(request: Request) {
             type: 'GAME_CREDITS',
           })
 
-        // Ignore duplicate key errors (23505) - row already exists
+        // FIX 2: Stop if user_credits creation failed (not a duplicate)
         if (upsertError && upsertError.code !== '23505') {
-          console.error('Failed to create user_credits row:', upsertError)
+          console.error(
+            'Aborting signup bonus: failed to create user_credits row',
+            upsertError
+          )
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
 
         // Award signup bonus in a transaction-like pattern
@@ -121,12 +146,22 @@ export async function GET(request: Request) {
           })
 
         if (!txnError) {
-          // Atomic credit increment using RPC
-          await adminClient.rpc('increment_user_credits', {
-            p_user_id: user.id,
-            p_type: 'GAME_CREDITS',
-            p_amount: signupBonusAmount,
-          })
+          // FIX 3: Destructure RPC error and log if present
+          const { error: rpcError } = await adminClient.rpc(
+            'increment_user_credits',
+            {
+              p_user_id: user.id,
+              p_type: 'GAME_CREDITS',
+              p_amount: signupBonusAmount,
+            }
+          )
+
+          if (rpcError) {
+            console.error(
+              'increment_user_credits RPC failed — ledger mismatch possible',
+              rpcError
+            )
+          }
         }
       }
     } catch (err) {
