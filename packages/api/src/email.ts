@@ -6,6 +6,19 @@ import { createClient } from '@supabase/supabase-js'
 
 // Update this domain before launch
 const FROM_EMAIL = 'noreply@yourdomain.com'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://yourdomain.com'
+
+/**
+ * Escape HTML to prevent injection attacks
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 // Service role client — server-side only, never expose to client
 function createAdminClient() {
@@ -38,12 +51,22 @@ export async function sendEmail(
     }
 
     const resend = new Resend(apiKey)
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject,
       html: htmlBody,
     })
+
+    if (error) {
+      console.error('Resend API error:', error.message)
+      return { success: false, error: error.message }
+    }
+
+    if (!data) {
+      console.error('Resend API returned no data')
+      return { success: false, error: 'No data returned from Resend' }
+    }
 
     return { success: true }
   } catch (error) {
@@ -114,7 +137,7 @@ export function templateE1(obfuscatedEmail: string): {
     <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
 
     <p style="color: #999999; font-size: 12px; line-height: 1.4; margin: 0;">
-      <a href="/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
+      <a href="${APP_URL}/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
     </p>
   </div>
 </body>
@@ -153,7 +176,7 @@ export function templateE2(): { subject: string; html: string } {
     <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
 
     <p style="color: #999999; font-size: 12px; line-height: 1.4; margin: 0;">
-      <a href="/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
+      <a href="${APP_URL}/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
     </p>
   </div>
 </body>
@@ -171,6 +194,8 @@ export function templateE3(
   method: string
 ): { subject: string; html: string } {
   const subject = 'Your payout is on its way'
+  const safeAmount = escapeHtml(amount)
+  const safeMethod = escapeHtml(method)
 
   const html = `
 <!DOCTYPE html>
@@ -185,7 +210,7 @@ export function templateE3(
     <h1 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Payout sent!</h1>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-      We've sent <strong>${amount}</strong> to your <strong>${method}</strong> account.
+      We've sent <strong>${safeAmount}</strong> to your <strong>${safeMethod}</strong> account.
     </p>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
@@ -195,7 +220,7 @@ export function templateE3(
     <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
 
     <p style="color: #999999; font-size: 12px; line-height: 1.4; margin: 0;">
-      <a href="/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
+      <a href="${APP_URL}/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
     </p>
   </div>
 </body>
@@ -213,6 +238,8 @@ export function templateE4(
   errorReason: string
 ): { subject: string; html: string } {
   const subject = 'Action needed: your payout failed'
+  const safeAmount = escapeHtml(amount)
+  const safeErrorReason = escapeHtml(errorReason)
 
   const html = `
 <!DOCTYPE html>
@@ -227,11 +254,11 @@ export function templateE4(
     <h1 style="color: #333333; font-size: 24px; margin: 0 0 20px 0;">Payout failed</h1>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-      We attempted to send <strong>${amount}</strong> to your account, but the payout failed.
+      We attempted to send <strong>${safeAmount}</strong> to your account, but the payout failed.
     </p>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 15px 0;">
-      <strong>Reason:</strong> ${errorReason}
+      <strong>Reason:</strong> ${safeErrorReason}
     </p>
 
     <p style="color: #555555; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
@@ -241,7 +268,7 @@ export function templateE4(
     <hr style="border: none; border-top: 1px solid #eeeeee; margin: 30px 0;">
 
     <p style="color: #999999; font-size: 12px; line-height: 1.4; margin: 0;">
-      <a href="/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
+      <a href="${APP_URL}/dashboard/settings" style="color: #999999; text-decoration: underline;">Unsubscribe from these notifications</a>
     </p>
   </div>
 </body>

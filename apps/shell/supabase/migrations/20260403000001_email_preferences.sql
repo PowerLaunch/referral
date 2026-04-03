@@ -27,7 +27,3 @@ CREATE POLICY "email_preferences_update_own"
 
 -- No DELETE policy — users cannot delete their email preferences
 -- No INSERT policy for authenticated users — preferences created via service role only
-
--- Index for performance
-CREATE INDEX IF NOT EXISTS idx_email_preferences_user_id
-  ON public.email_preferences(user_id);
