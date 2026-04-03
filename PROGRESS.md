@@ -170,3 +170,4 @@ Complete these before starting PR 5-A:
 | 2026-04-02 | chore/vercel-build-fixes | PR #6 merged | chore: fix Vercel build issues |
 | 2026-04-02 | feat/shell-app | PR 2-B | Shell game: dummy puzzle, heartbeat, gameplay tracking |
 | 2026-04-03 | feat/shell-app | PR 2-B merged | Shell game: dummy puzzle, heartbeat, gameplay tracking, security fixes |
+| 2026-04-03 | feat/shell-app | PR #7 merged | feat: add minimal daily puzzle shell game (PR 2-B) |
