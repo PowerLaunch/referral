@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "resend": "^6.10.0"
   }
 }
