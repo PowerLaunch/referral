@@ -19,7 +19,8 @@ export async function getGameConfig(): Promise<{ minGameplayMinutes: number }> {
       return { minGameplayMinutes: 10 }
     }
 
-    return { minGameplayMinutes: data.min_gameplay_minutes ?? 10 }
+    // || not ?? — guards against 0 as well as null/undefined
+    return { minGameplayMinutes: data.min_gameplay_minutes || 10 }
   } catch {
     return { minGameplayMinutes: 10 }
   }

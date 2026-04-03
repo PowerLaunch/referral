@@ -66,7 +66,9 @@ export function GameplayTracker({
     }
   }, [])
 
-  const progress = Math.min(100, (minutes / targetMinutes) * 100)
+  const progress = targetMinutes > 0
+    ? Math.min(100, (minutes / targetMinutes) * 100)
+    : 0
   const isComplete = minutes >= targetMinutes
 
   return (

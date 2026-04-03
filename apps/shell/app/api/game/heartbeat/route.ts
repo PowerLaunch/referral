@@ -3,7 +3,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
 
 export async function POST(request: Request): Promise<Response> {
   try {
