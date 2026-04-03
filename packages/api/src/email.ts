@@ -5,7 +5,7 @@ import { Resend } from 'resend'
 import { createAdminClient } from '../../../apps/shell/lib/supabase/admin'
 
 // Update this domain before launch
-const FROM_EMAIL = 'noreply@yourdomain.com'
+const FROM_EMAIL = process.env.FROM_EMAIL ?? 'noreply@yourdomain.com'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://yourdomain.com'
 
 /**
@@ -375,7 +375,7 @@ export async function triggerE2(referrerId: string): Promise<void> {
     // Check email preferences
     const { data: prefs, error: prefsError } = await adminClient
       .from('email_preferences')
-      .select('payout_notifications')
+      .select('referral_updates')
       .eq('user_id', referrerId)
       .single()
 
@@ -383,7 +383,7 @@ export async function triggerE2(referrerId: string): Promise<void> {
       console.error('Failed to fetch email preferences:', prefsError)
     }
 
-    if (prefs && prefs.payout_notifications === false) {
+    if (prefs && prefs.referral_updates === false) {
       return
     }
 
