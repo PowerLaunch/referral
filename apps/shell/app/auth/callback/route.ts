@@ -41,12 +41,13 @@ export async function GET(request: Request) {
         // and will be addressed in Phase 4 by storing referral_code server-side at click time.
         const adminClient = createAdminClient()
 
-        if (secondsSinceCreation > 300) {
-          console.error(
-            'Referral creation skipped — callback arrived too late, possible metadata injection'
-          )
-        } else {
-          const adminClient = createAdminClient()
+        // Look up referrer by referral_code
+        const { data: referrerProfile, error: referrerError } =
+          await adminClient
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', referralCode)
+            .single()
 
         if (!referrerError && referrerProfile) {
             // Extract IP from request headers
@@ -81,9 +82,8 @@ export async function GET(request: Request) {
                 lock_timer_frozen: false,
               })
 
-            if (referralError) {
-              console.error('Failed to create referral:', referralError)
-            }
+          if (referralError) {
+            console.error('Failed to create referral:', referralError)
           }
         }
       }
