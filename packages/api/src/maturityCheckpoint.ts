@@ -3,33 +3,7 @@
 // All operations use admin client (service role) — bypasses RLS.
 // Freeze/unfreeze are atomic via Postgres RPCs (audit log included).
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
-
-// Service role client — this module is server-side only. Never import from client components.
-// Lazy initialization to avoid build-time errors when env vars aren't available.
-let adminClient: SupabaseClient | null = null
-
-function getAdminClient(): SupabaseClient {
-  if (!adminClient) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error(
-        'Missing Supabase environment variables for maturity checkpoint (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)'
-      )
-    }
-
-    adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-  }
-
-  return adminClient
-}
+import { getAdminClient } from './credits'
 
 /**
  * Freeze all PENDING non-frozen referrals for a user.
