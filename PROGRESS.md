@@ -173,3 +173,4 @@ Complete these before starting PR 5-A:
 | 2026-04-03 | feat/shell-app | PR #7 merged | feat: add minimal daily puzzle shell game (PR 2-B) |
 | 2026-04-03 | feat/email-templates | PR #8 merged | feat: add Resend email infrastructure and 5 transactional templates |
 | 2026-04-04 | feat/lock-periods | PR #9 merged | feat: lock period calculation and signup bonus (PR 2-D) |
+| 2026-04-04 | feat/credit-system | PR #10 merged | PR 3-A: Canonical credit ledger system |
