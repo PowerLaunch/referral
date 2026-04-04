@@ -6,12 +6,14 @@
 -- ALTER TABLE user_credits ADD CONSTRAINT user_credits_amount_non_negative CHECK (amount >= 0);
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'user_credits_amount_check'
     AND conrelid = 'user_credits'::regclass
   ) THEN
     RAISE NOTICE 'user_credits CHECK (amount >= 0) constraint verified';
+  ELSE
+    RAISE EXCEPTION 'CRITICAL: user_credits CHECK (amount >= 0) constraint is missing — do not proceed';
   END IF;
 END $$;
 

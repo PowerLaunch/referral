@@ -52,9 +52,11 @@ export async function awardCredits(
   })
 
   if (error) {
-    throw new Error(
+    const err = new Error(
       `Failed to award ${amount} ${type} credits to user ${userId}: ${error.message}`
     )
+    ;(err as any as { code: string }).code = error.code
+    throw err
   }
 }
 
@@ -87,9 +89,11 @@ export async function deductCredits(
 
   if (error) {
     // Insufficient balance is a normal business logic rejection, not a crash
-    throw new Error(
+    const err = new Error(
       `Failed to deduct ${amount} ${type} credits from user ${userId}: ${error.message}`
     )
+    ;(err as any as { code: string }).code = error.code
+    throw err
   }
 }
 

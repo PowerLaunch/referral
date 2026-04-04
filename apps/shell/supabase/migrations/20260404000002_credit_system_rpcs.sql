@@ -20,7 +20,7 @@ BEGIN
   -- Upsert balance row (handles first-ever credit for this user+type)
   -- UNIQUE constraint on (user_id, type) exists from Phase 1 foundation migration
   INSERT INTO user_credits (id, user_id, amount, type, updated_at)
-  VALUES (gen_random_uuid(), p_user_id, p_amount, p_type::credit_type, now())
+  VALUES (gen_random_uuid(), p_user_id, p_amount, p_type, now())
   ON CONFLICT (user_id, type) DO UPDATE
   SET amount = user_credits.amount + EXCLUDED.amount,
       updated_at = now();
@@ -44,7 +44,7 @@ BEGIN
   -- Atomic deduction with balance check in one statement (prevents race condition)
   UPDATE user_credits
   SET amount = amount - p_amount, updated_at = now()
-  WHERE user_id = p_user_id AND type = p_type::credit_type AND amount >= p_amount;
+  WHERE user_id = p_user_id AND type = p_type AND amount >= p_amount;
 
   GET DIAGNOSTICS rows_affected = ROW_COUNT;
 
