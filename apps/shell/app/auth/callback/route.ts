@@ -103,13 +103,23 @@ export async function GET(request: Request) {
         const signupBonusAmount = gameConfig.signup_bonus_amount
 
         // Guard B: Idempotency check — prevent duplicate signup bonus
-        const { data: existingBonus } = await adminClient
-          .from('credit_transactions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('reason', 'signup_bonus')
-          .limit(1)
-          .single()
+        const { data: existingBonus, error: idempotencyError } =
+          await adminClient
+            .from('credit_transactions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('reason', 'signup_bonus')
+            .limit(1)
+            .maybeSingle()
+
+        if (idempotencyError) {
+          // Query failed — abort to be safe
+          console.error(
+            'Idempotency check failed — aborting signup bonus to be safe',
+            idempotencyError
+          )
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+        }
 
         if (existingBonus) {
           // Signup bonus already awarded — skip

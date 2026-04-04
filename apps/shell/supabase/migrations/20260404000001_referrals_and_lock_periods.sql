@@ -43,19 +43,6 @@ CREATE TRIGGER handle_updated_at_referrals
   BEFORE UPDATE ON public.referrals
   FOR EACH ROW EXECUTE PROCEDURE extensions.moddatetime(updated_at);
 
--- Add unique constraint on (user_id, type) for user_credits if not exists
--- This ensures atomic credit operations
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'user_credits_user_type_unique'
-  ) THEN
-    ALTER TABLE public.user_credits
-      ADD CONSTRAINT user_credits_user_type_unique UNIQUE (user_id, type);
-  END IF;
-END $$;
-
 -- RPC function for atomic credit increment
 -- Used in signup bonus flow (will be replaced by awardCredits() in PR 3-A)
 CREATE OR REPLACE FUNCTION public.increment_user_credits(
@@ -68,6 +55,10 @@ BEGIN
   UPDATE public.user_credits
   SET amount = amount + p_amount, updated_at = now()
   WHERE user_id = p_user_id AND type = p_type;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'increment_user_credits: no row found for user_id=% type=%', p_user_id, p_type;
+  END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
