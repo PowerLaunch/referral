@@ -7,7 +7,7 @@ CREATE INDEX IF NOT EXISTS idx_referrals_pending_eligible
   ON referrals(status, payout_eligible_at)
   WHERE status = 'PENDING' AND lock_timer_frozen = false;
 
--- The monthly cap check queries referrals by referrer_id + status + created_at.
+-- The monthly cap check queries referrals by referrer_id + confirmed_at.
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer_confirmed_monthly
-  ON referrals(referrer_id, status, created_at)
+  ON referrals(referrer_id, confirmed_at)
   WHERE status = 'CONFIRMED';

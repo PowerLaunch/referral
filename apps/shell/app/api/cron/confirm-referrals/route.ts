@@ -1,5 +1,5 @@
 // Daily cron: confirms PENDING referrals that meet all criteria.
-// Runs at 02:00 UTC via Vercel Cron. Protected by x-cron-secret.
+// Runs at 02:00 UTC via Vercel Cron. Protected by authorization Bearer token.
 // Each referral is processed independently — one failure does not abort the batch.
 
 import { NextRequest } from 'next/server'
@@ -9,7 +9,7 @@ import { triggerE2 } from '@referral/api/email'
 
 export async function GET(request: NextRequest): Promise<Response> {
   // Step 1 — Auth check
-  const cronSecret = request.headers.get('x-cron-secret')
+  const authHeader = request.headers.get('authorization')
   const expectedSecret = process.env.CRON_SECRET
 
   if (!expectedSecret) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     )
   }
 
-  if (!cronSecret || cronSecret !== expectedSecret) {
+  if (authHeader !== `Bearer ${expectedSecret}`) {
     console.error('Unauthorized cron attempt')
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -163,22 +163,26 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
 
       // e) Check referrer monthly cap
-      // CRITICAL: scope to current calendar month using date_trunc, NOT "last 30 days".
+      // CRITICAL: scope to current calendar month using confirmed_at, NOT created_at.
+      // A referral created in month N but confirmed in month N+1 should count toward month N+1.
       // Current referral is still PENDING so it's excluded from the cap count.
+      const startOfMonth = new Date()
+      startOfMonth.setDate(1)
+      startOfMonth.setHours(0, 0, 0, 0)
+
+      const startOfNextMonth = new Date(
+        startOfMonth.getFullYear(),
+        startOfMonth.getMonth() + 1,
+        1
+      )
+
       const { count: confirmedCount, error: capError } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
         .eq('referrer_id', referral.referrer_id)
         .eq('status', 'CONFIRMED')
-        .gte('created_at', new Date().toISOString().slice(0, 7) + '-01T00:00:00Z') // First day of current month
-        .lt(
-          'created_at',
-          new Date(
-            new Date().getFullYear(),
-            new Date().getMonth() + 1,
-            1
-          ).toISOString()
-        ) // First day of next month
+        .gte('confirmed_at', startOfMonth.toISOString())
+        .lt('confirmed_at', startOfNextMonth.toISOString())
 
       if (capError) {
         console.error(
