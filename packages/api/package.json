@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./credits": "./src/credits.ts",
     "./email": "./src/email.ts",
-    "./lockPeriod": "./src/lockPeriod.ts"
+    "./lockPeriod": "./src/lockPeriod.ts",
+    "./maturityCheckpoint": "./src/maturityCheckpoint.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 // Lazy initialization to avoid build-time errors when env vars aren't available.
 let adminClient: SupabaseClient | null = null
 
-function getAdminClient(): SupabaseClient {
+export function getAdminClient(): SupabaseClient {
   if (!adminClient) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
