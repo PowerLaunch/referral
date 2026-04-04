@@ -11,7 +11,10 @@ CREATE TABLE referral_audit_logs (
 );
 
 -- Append-only: no updates or deletes ever
-REVOKE UPDATE, DELETE ON referral_audit_logs FROM authenticated, anon;
+REVOKE UPDATE, DELETE ON referral_audit_logs FROM PUBLIC;
+REVOKE UPDATE, DELETE ON referral_audit_logs FROM anon;
+REVOKE UPDATE, DELETE ON referral_audit_logs FROM authenticated;
+REVOKE UPDATE, DELETE ON referral_audit_logs FROM service_role;
 
 -- RLS: enable but no user policies. Only service role (admin client) can read/write.
 ALTER TABLE referral_audit_logs ENABLE ROW LEVEL SECURITY;
