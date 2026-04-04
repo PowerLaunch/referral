@@ -107,32 +107,6 @@ export async function GET(request: Request) {
         const adminClient = createAdminClient()
         const signupBonusAmount = gameConfig.signup_bonus_amount
 
-        // Idempotency is the sole guard for first-login detection.
-        // Timestamp and URL param approaches are unreliable in Supabase PKCE flow.
-        // This query ensures the bonus fires exactly once regardless of how many times this callback runs.
-        const { data: existingBonus, error: idempotencyError } =
-          await adminClient
-            .from('credit_transactions')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('reason', 'signup_bonus')
-            .limit(1)
-            .maybeSingle()
-
-        if (idempotencyError) {
-          // Query failed — abort to be safe
-          console.error(
-            'Idempotency check failed — aborting signup bonus to be safe',
-            idempotencyError
-          )
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
-        }
-
-        if (existingBonus) {
-          // Signup bonus already awarded — skip
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
-        }
-
         // Ensure user_credits row exists (UPSERT pattern)
         const { error: upsertError } = await adminClient
           .from('user_credits')
@@ -151,11 +125,8 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
 
-        // KNOWN LIMITATION: credit_transactions insert and increment_user_credits RPC are not atomic.
-        // If the RPC fails after the insert, a ledger mismatch occurs with no automatic recovery.
-        // This entire block will be replaced by awardCredits() in PR 3-A which is fully atomic.
-        // Manual reconciliation: check for credit_transactions rows with reason='signup_bonus'
-        // where no corresponding user_credits increment exists.
+        // Unique constraint on (user_id, reason) is the atomic idempotency guard.
+        // ON CONFLICT DO NOTHING means concurrent requests safely no-op at the DB level.
         const { data: txnData, error: txnError } = await adminClient
           .from('credit_transactions')
           .insert({
@@ -167,7 +138,23 @@ export async function GET(request: Request) {
           .select('id')
           .single()
 
-        if (!txnError && txnData) {
+        // Check for unique constraint violation (23505)
+        if (txnError) {
+          if (txnError.code === '23505') {
+            // Signup bonus already awarded (unique constraint violation)
+            console.log(
+              'Signup bonus already awarded (concurrent request blocked by unique constraint)'
+            )
+            return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+          } else {
+            // Other error — abort
+            console.error('Failed to insert signup bonus transaction:', txnError)
+            return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+          }
+        }
+
+        // Transaction inserted successfully — increment user_credits
+        if (txnData) {
           const { error: rpcError } = await adminClient.rpc(
             'increment_user_credits',
             {

@@ -64,3 +64,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 REVOKE EXECUTE ON FUNCTION public.increment_user_credits(uuid, text, integer) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.increment_user_credits(uuid, text, integer) TO service_role;
+
+-- Atomic idempotency guard for signup bonus and other one-time credit grants
+ALTER TABLE public.credit_transactions
+  ADD CONSTRAINT credit_transactions_user_reason_unique UNIQUE (user_id, reason);
