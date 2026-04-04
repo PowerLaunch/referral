@@ -10,9 +10,9 @@ CREATE OR REPLACE FUNCTION confirm_referral(
   p_reason text DEFAULT 'All confirmation criteria passed'
 ) RETURNS void AS $$
 BEGIN
-  -- Update referral status
+  -- Update referral status and set confirmed_at timestamp
   UPDATE referrals
-  SET status = 'CONFIRMED'
+  SET status = 'CONFIRMED', confirmed_at = now()
   WHERE id = p_referral_id AND status = 'PENDING';
 
   IF NOT FOUND THEN
@@ -23,4 +23,9 @@ BEGIN
   INSERT INTO referral_audit_logs (referral_id, action, reason, triggered_by)
   VALUES (p_referral_id, 'CONFIRM', p_reason, p_triggered_by);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION confirm_referral(uuid, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION confirm_referral(uuid, uuid, text) FROM anon;
+REVOKE ALL ON FUNCTION confirm_referral(uuid, uuid, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION confirm_referral(uuid, uuid, text) TO service_role;
