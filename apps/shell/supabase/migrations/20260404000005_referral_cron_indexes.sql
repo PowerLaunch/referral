@@ -4,9 +4,6 @@
 -- Add confirmed_at column (BugBot fix: must exist before indexes reference it)
 ALTER TABLE referrals ADD COLUMN IF NOT EXISTS confirmed_at timestamptz;
 
--- Add frozen_at column (PR 3-C: must exist before freeze/unfreeze RPCs reference it)
-ALTER TABLE referrals ADD COLUMN IF NOT EXISTS frozen_at timestamptz;
-
 -- The cron queries referrals by status + payout_eligible_at + lock_timer_frozen.
 -- Without an index, this is a full table scan on every daily run.
 CREATE INDEX IF NOT EXISTS idx_referrals_pending_eligible
