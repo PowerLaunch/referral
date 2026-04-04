@@ -81,10 +81,10 @@ export async function GET(request: Request) {
                 lock_timer_frozen: false,
               })
 
-          if (referralError) {
-            console.error('Failed to create referral:', referralError)
+            if (referralError) {
+              console.error('Failed to create referral:', referralError)
+            }
           }
-        }
         }
       }
 
