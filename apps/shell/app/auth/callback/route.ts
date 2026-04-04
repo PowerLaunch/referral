@@ -5,7 +5,8 @@ import {
   getLockPeriodDays,
   getCountryFromIp,
   isVpnDetected,
-} from '@/../../packages/api/src/lockPeriod'
+} from '@referral/api/lockPeriod'
+import { awardCredits } from '@referral/api/credits'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -95,75 +96,24 @@ export async function GET(request: Request) {
         .single()
 
       if (!configError && gameConfig && gameConfig.signup_bonus_amount > 0) {
-        const adminClient = createAdminClient()
         const signupBonusAmount = gameConfig.signup_bonus_amount
 
-        // Ensure user_credits row exists (UPSERT pattern)
-        const { error: upsertError } = await adminClient
-          .from('user_credits')
-          .insert({
-            user_id: user.id,
-            amount: 0,
-            type: 'GAME_CREDITS',
-          })
-
-        // FIX 2: Stop if user_credits creation failed (not a duplicate)
-        if (upsertError && upsertError.code !== '23505') {
-          console.error(
-            'Aborting signup bonus: failed to create user_credits row',
-            upsertError
-          )
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
-        }
-
+        // Replaced inline credit logic from PR 2-D with canonical awardCredits() utility.
         // Partial unique index on (user_id) WHERE reason='signup_bonus' is the atomic idempotency guard.
-        // ON CONFLICT DO NOTHING means concurrent requests safely no-op at the DB level.
-        // This index only restricts signup_bonus — other reason values are unconstrained.
-        const { data: txnData, error: txnError } = await adminClient
-          .from('credit_transactions')
-          .insert({
-            user_id: user.id,
-            amount: signupBonusAmount,
-            type: 'GAME_CREDITS',
-            reason: 'signup_bonus',
-          })
-          .select('id')
-          .single()
-
-        // Check for unique constraint violation (23505)
-        if (txnError) {
-          if (txnError.code === '23505') {
-            // Signup bonus already awarded (unique constraint violation)
+        // The RPC function handles both ledger entry and balance update atomically.
+        try {
+          await awardCredits(user.id, signupBonusAmount, 'GAME_CREDITS', 'signup_bonus')
+        } catch (error) {
+          // Check if it's a duplicate signup bonus (23505 unique constraint violation)
+          if ((error as { code?: string }).code === '23505') {
             console.log(
               'Signup bonus already awarded (concurrent request blocked by unique constraint)'
             )
-            return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
           } else {
-            // Other error — abort
-            console.error('Failed to insert signup bonus transaction:', txnError)
-            return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+            // Other error — log and continue (don't block login)
+            console.error('Failed to award signup bonus:', error)
           }
-        }
-
-        // Transaction inserted successfully — increment user_credits
-        if (txnData) {
-          const { error: rpcError } = await adminClient.rpc(
-            'increment_user_credits',
-            {
-              p_user_id: user.id,
-              p_type: 'GAME_CREDITS',
-              p_amount: signupBonusAmount,
-            }
-          )
-
-          if (rpcError) {
-            console.error(
-              'increment_user_credits RPC failed — ledger mismatch possible',
-              rpcError,
-              'credit_transactions row id:',
-              txnData.id
-            )
-          }
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
       }
     } catch (err) {

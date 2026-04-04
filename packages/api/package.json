@@ -4,6 +4,12 @@
   "private": true,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./credits": "./src/credits.ts",
+    "./email": "./src/email.ts",
+    "./lockPeriod": "./src/lockPeriod.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
@@ -11,6 +17,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.100.1",
     "resend": "^6.10.0"
   }
 }
