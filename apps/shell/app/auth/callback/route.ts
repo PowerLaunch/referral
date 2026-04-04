@@ -57,42 +57,42 @@ export async function GET(request: Request) {
               .single()
 
           if (!referrerError && referrerProfile) {
-          // Extract IP from request headers
-          const forwardedFor = request.headers.get('x-forwarded-for')
-          const ip = forwardedFor
-            ? forwardedFor.split(',')[0]?.trim() ?? '0.0.0.0'
-            : '0.0.0.0'
+            // Extract IP from request headers
+            const forwardedFor = request.headers.get('x-forwarded-for')
+            const ip = forwardedFor
+              ? forwardedFor.split(',')[0]?.trim() ?? '0.0.0.0'
+              : '0.0.0.0'
 
-          // Get country and VPN detection (stubs for now)
-          const countryCode = getCountryFromIp(ip)
-          const vpnDetected = isVpnDetected(ip)
+            // Get country and VPN detection (stubs for now)
+            const countryCode = getCountryFromIp(ip)
+            const vpnDetected = isVpnDetected(ip)
 
-          // Calculate lock period
-          const lockPeriodDays = getLockPeriodDays(countryCode, vpnDetected)
+            // Calculate lock period
+            const lockPeriodDays = getLockPeriodDays(countryCode, vpnDetected)
 
-          // Calculate payout_eligible_at
-          const payoutEligibleAt = new Date()
-          payoutEligibleAt.setDate(
-            payoutEligibleAt.getDate() + lockPeriodDays
-          )
+            // Calculate payout_eligible_at
+            const payoutEligibleAt = new Date()
+            payoutEligibleAt.setDate(
+              payoutEligibleAt.getDate() + lockPeriodDays
+            )
 
-          // Create PENDING referral
-          const { error: referralError } = await adminClient
-            .from('referrals')
-            .insert({
-              referrer_id: referrerProfile.id,
-              referee_id: user.id,
-              referral_code: referralCode,
-              status: 'PENDING',
-              payout_eligible_at: payoutEligibleAt.toISOString(),
-              country_code: countryCode,
-              lock_timer_frozen: false,
-            })
+            // Create PENDING referral
+            const { error: referralError } = await adminClient
+              .from('referrals')
+              .insert({
+                referrer_id: referrerProfile.id,
+                referee_id: user.id,
+                referral_code: referralCode,
+                status: 'PENDING',
+                payout_eligible_at: payoutEligibleAt.toISOString(),
+                country_code: countryCode,
+                lock_timer_frozen: false,
+              })
 
-          if (referralError) {
-            console.error('Failed to create referral:', referralError)
+            if (referralError) {
+              console.error('Failed to create referral:', referralError)
+            }
           }
-        }
         }
       }
 
