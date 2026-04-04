@@ -97,22 +97,6 @@ export async function GET(request: Request) {
       }
 
       // Award signup bonus on initial email verification only
-      // PKCE flow does not forward 'type' param — use timestamp proximity to detect first login instead.
-      const userCreatedAt = new Date(user.created_at)
-      const lastSignInAt = user.last_sign_in_at
-        ? new Date(user.last_sign_in_at)
-        : null
-
-      if (lastSignInAt) {
-        const timeDiffSeconds =
-          (lastSignInAt.getTime() - userCreatedAt.getTime()) / 1000
-
-        if (timeDiffSeconds > 60) {
-          // Not a first login — skip signup bonus
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
-        }
-      }
-
       const { data: gameConfig, error: configError } = await createAdminClient()
         .from('game_config')
         .select('signup_bonus_amount')
@@ -123,7 +107,9 @@ export async function GET(request: Request) {
         const adminClient = createAdminClient()
         const signupBonusAmount = gameConfig.signup_bonus_amount
 
-        // Guard B: Idempotency check — prevent duplicate signup bonus
+        // Idempotency is the sole guard for first-login detection.
+        // Timestamp and URL param approaches are unreliable in Supabase PKCE flow.
+        // This query ensures the bonus fires exactly once regardless of how many times this callback runs.
         const { data: existingBonus, error: idempotencyError } =
           await adminClient
             .from('credit_transactions')
@@ -165,9 +151,11 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
 
-        // TODO PR 3-A: Replace this entire bonus block with awardCredits() from packages/api/src/credits.ts
-        // which performs credit_transactions insert + user_credits update atomically in one transaction.
-        // The current non-atomic implementation is intentional scaffolding only.
+        // KNOWN LIMITATION: credit_transactions insert and increment_user_credits RPC are not atomic.
+        // If the RPC fails after the insert, a ledger mismatch occurs with no automatic recovery.
+        // This entire block will be replaced by awardCredits() in PR 3-A which is fully atomic.
+        // Manual reconciliation: check for credit_transactions rows with reason='signup_bonus'
+        // where no corresponding user_credits increment exists.
         const { data: txnData, error: txnError } = await adminClient
           .from('credit_transactions')
           .insert({
