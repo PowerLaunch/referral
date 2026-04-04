@@ -166,14 +166,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       // CRITICAL: scope to current calendar month using confirmed_at, NOT created_at.
       // A referral created in month N but confirmed in month N+1 should count toward month N+1.
       // Current referral is still PENDING so it's excluded from the cap count.
-      const startOfMonth = new Date()
-      startOfMonth.setDate(1)
-      startOfMonth.setHours(0, 0, 0, 0)
-
+      const now = new Date()
+      const startOfMonth = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+      )
       const startOfNextMonth = new Date(
-        startOfMonth.getFullYear(),
-        startOfMonth.getMonth() + 1,
-        1
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
       )
 
       const { count: confirmedCount, error: capError } = await adminClient
@@ -233,20 +231,29 @@ export async function GET(request: NextRequest): Promise<Response> {
       // i) Award credits to referrer
       // $2 one-time payout per spec Section 2.1
       // 100 credits = $1 USD per spec, so $2 = 200 credits
+      // Use referral ID in reason for idempotency (prevents duplicate awards on retry)
       try {
         await awardCredits(
           referral.referrer_id,
           200,
           'CASH_BALANCE',
-          'referral_confirmed'
+          `referral_confirmed:${referral.id}`
         )
-      } catch (creditError) {
-        console.error(
-          `Referral ${referral.id}: Failed to award credits:`,
-          creditError
-        )
-        errors++
-        continue
+      } catch (creditError: unknown) {
+        const code = (creditError as { code?: string }).code
+        if (code === '23505') {
+          // Credit already awarded on a previous run — safe to continue to confirmation
+          console.log(
+            `Credit already awarded for referral ${referral.id}, continuing to confirm`
+          )
+        } else {
+          console.error(
+            `Referral ${referral.id}: Failed to award credits:`,
+            creditError
+          )
+          errors++
+          continue
+        }
       }
 
       // ii) Confirm the referral atomically
