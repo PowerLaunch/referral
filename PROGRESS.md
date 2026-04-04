@@ -7,9 +7,9 @@
 ## Current Status
 **Phase:** Phase 3 — Referral Engine (in progress)
 **Last updated:** 2026-04-04
-**Last Completed PR:** 3-B (feat/referral-confirmation)
-**Next PR:** 3-C (feat/maturity-checkpoint)
-**Overall Progress:** 8 / 35 PRs complete
+**Last Completed PR:** 3-C (feat/maturity-checkpoint)
+**Next PR:** 3-D (feat/payout-workflow)
+**Overall Progress:** 9 / 35 PRs complete
 
 ---
 
@@ -175,3 +175,4 @@ Complete these before starting PR 5-A:
 | 2026-04-04 | feat/lock-periods | PR #9 merged | feat: lock period calculation and signup bonus (PR 2-D) |
 | 2026-04-04 | feat/credit-system | PR #10 merged | PR 3-A: Canonical credit ledger system |
 | 2026-04-04 | feat/referral-confirmation | PR 3-B | Referral confirmation cron, audit logs, cap check |
+| 2026-04-04 | feat/maturity-checkpoint | PR 3-C | Maturity checkpoint: freeze/unfreeze RPCs, webhook stub |
