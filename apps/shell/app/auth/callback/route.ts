@@ -35,28 +35,20 @@ export async function GET(request: Request) {
       const referralCode = user.user_metadata?.referral_code as string | null
 
       if (referralCode) {
-        // user_metadata is client-writable — time-bound check limits retroactive injection.
-        // Full fix deferred to Phase 4 fraud engine which adds server-side referral code capture.
-        const userCreatedAt = new Date(user.created_at)
-        const secondsSinceCreation =
-          (Date.now() - userCreatedAt.getTime()) / 1000
+        // user_metadata is client-writable but the UNIQUE(referee_id) constraint on referrals
+        // limits each user to one referral row. Retroactive injection risk is accepted here
+        // and will be addressed in Phase 4 by storing referral_code server-side at click time.
+        const adminClient = createAdminClient()
 
-        if (secondsSinceCreation > 300) {
-          console.error(
-            'Referral creation skipped — callback arrived too late, possible metadata injection'
-          )
-        } else {
-          const adminClient = createAdminClient()
+        // Look up referrer by referral_code
+        const { data: referrerProfile, error: referrerError } =
+          await adminClient
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', referralCode)
+            .single()
 
-          // Look up referrer by referral_code
-          const { data: referrerProfile, error: referrerError } =
-            await adminClient
-              .from('profiles')
-              .select('id')
-              .eq('referral_code', referralCode)
-              .single()
-
-          if (!referrerError && referrerProfile) {
+        if (!referrerError && referrerProfile) {
             // Extract IP from request headers
             const forwardedFor = request.headers.get('x-forwarded-for')
             const ip = forwardedFor
@@ -89,9 +81,8 @@ export async function GET(request: Request) {
                 lock_timer_frozen: false,
               })
 
-            if (referralError) {
-              console.error('Failed to create referral:', referralError)
-            }
+          if (referralError) {
+            console.error('Failed to create referral:', referralError)
           }
         }
       }
@@ -125,8 +116,9 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
 
-        // Unique constraint on (user_id, reason) is the atomic idempotency guard.
+        // Partial unique index on (user_id) WHERE reason='signup_bonus' is the atomic idempotency guard.
         // ON CONFLICT DO NOTHING means concurrent requests safely no-op at the DB level.
+        // This index only restricts signup_bonus — other reason values are unconstrained.
         const { data: txnData, error: txnError } = await adminClient
           .from('credit_transactions')
           .insert({

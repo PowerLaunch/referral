@@ -65,6 +65,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 REVOKE EXECUTE ON FUNCTION public.increment_user_credits(uuid, text, integer) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.increment_user_credits(uuid, text, integer) TO service_role;
 
--- Atomic idempotency guard for signup bonus and other one-time credit grants
-ALTER TABLE public.credit_transactions
-  ADD CONSTRAINT credit_transactions_user_reason_unique UNIQUE (user_id, reason);
+-- Atomic idempotency guard for signup bonus (partial index scoped to signup_bonus only)
+-- This allows multiple credit_transactions per user for other reasons (referral_bonus, recurring_reward, etc.)
+CREATE UNIQUE INDEX IF NOT EXISTS credit_transactions_signup_bonus_once
+  ON public.credit_transactions (user_id)
+  WHERE reason = 'signup_bonus';
