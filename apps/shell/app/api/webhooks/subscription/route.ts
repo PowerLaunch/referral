@@ -10,12 +10,25 @@ import {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    // TODO PR 5-A: Validate webhook signature (HMAC-SHA256) from payment provider.
-    // For now, this endpoint accepts any POST. Do NOT deploy this to production
-    // without signature validation.
-    const signature = request.headers.get('x-webhook-signature')
-    if (!signature) {
-      console.warn('Webhook received without signature — stub mode, proceeding')
+    // TODO PR 5-A: Replace with real provider HMAC signature validation.
+    // For now, use a simple shared secret for internal testing.
+    const secret = request.headers.get('x-webhook-secret')
+    const expectedSecret = process.env.SUBSCRIPTION_WEBHOOK_SECRET
+
+    if (!expectedSecret) {
+      console.error('SUBSCRIPTION_WEBHOOK_SECRET not configured')
+      return Response.json(
+        { ok: false, error: 'Server configuration error' },
+        { status: 500 }
+      )
+    }
+
+    if (secret !== expectedSecret) {
+      console.error('Unauthorized webhook attempt')
+      return Response.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     // Parse body
