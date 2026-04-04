@@ -105,7 +105,7 @@ export async function GET(request: Request) {
           await awardCredits(user.id, signupBonusAmount, 'GAME_CREDITS', 'signup_bonus')
         } catch (error) {
           // Check if it's a duplicate signup bonus (23505 unique constraint violation)
-          if ((error as any).code === '23505') {
+          if ((error as { code?: string }).code === '23505') {
             console.log(
               'Signup bonus already awarded (concurrent request blocked by unique constraint)'
             )

@@ -1,21 +1,30 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 // Service role client — this module is server-side only. Never import from client components.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// Lazy initialization to avoid build-time errors when env vars aren't available.
+let adminClient: SupabaseClient | null = null
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error(
-    'Missing Supabase environment variables for credit system (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)'
-  )
+function getAdminClient(): SupabaseClient {
+  if (!adminClient) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error(
+        'Missing Supabase environment variables for credit system (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)'
+      )
+    }
+
+    adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  }
+
+  return adminClient
 }
-
-const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-})
 
 // GAME_CREDITS are non-cashable by design (spec Section 2.7).
 // All cashout routes MUST check type === CASHABLE_CREDIT_TYPE before processing.
@@ -44,7 +53,7 @@ export async function awardCredits(
     throw new Error(`Amount must be positive, got ${amount}`)
   }
 
-  const { error } = await adminClient.rpc('award_credits', {
+  const { error } = await getAdminClient().rpc('award_credits', {
     p_user_id: userId,
     p_amount: amount,
     p_type: type,
@@ -80,7 +89,7 @@ export async function deductCredits(
     throw new Error(`Amount must be positive, got ${amount}`)
   }
 
-  const { error } = await adminClient.rpc('deduct_credits', {
+  const { error } = await getAdminClient().rpc('deduct_credits', {
     p_user_id: userId,
     p_amount: amount,
     p_type: type,
@@ -107,7 +116,7 @@ export async function getBalance(
   userId: string,
   type: 'CASH_BALANCE' | 'GAME_CREDITS'
 ): Promise<number> {
-  const { data, error } = await adminClient
+  const { data, error } = await getAdminClient()
     .from('user_credits')
     .select('amount')
     .eq('user_id', userId)
