@@ -5,8 +5,8 @@ import {
   getLockPeriodDays,
   getCountryFromIp,
   isVpnDetected,
-} from '@/../../packages/api/src/lockPeriod'
-import { awardCredits } from '@/../../packages/api/src/credits'
+} from '@referral/api/lockPeriod'
+import { awardCredits } from '@referral/api/credits'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
