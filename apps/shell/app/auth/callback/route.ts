@@ -35,17 +35,28 @@ export async function GET(request: Request) {
       const referralCode = user.user_metadata?.referral_code as string | null
 
       if (referralCode) {
-        const adminClient = createAdminClient()
+        // user_metadata is client-writable — time-bound check limits retroactive injection.
+        // Full fix deferred to Phase 4 fraud engine which adds server-side referral code capture.
+        const userCreatedAt = new Date(user.created_at)
+        const secondsSinceCreation =
+          (Date.now() - userCreatedAt.getTime()) / 1000
 
-        // Look up referrer by referral_code
-        const { data: referrerProfile, error: referrerError } =
-          await adminClient
-            .from('profiles')
-            .select('id')
-            .eq('referral_code', referralCode)
-            .single()
+        if (secondsSinceCreation > 300) {
+          console.error(
+            'Referral creation skipped — callback arrived too late, possible metadata injection'
+          )
+        } else {
+          const adminClient = createAdminClient()
 
-        if (!referrerError && referrerProfile) {
+          // Look up referrer by referral_code
+          const { data: referrerProfile, error: referrerError } =
+            await adminClient
+              .from('profiles')
+              .select('id')
+              .eq('referral_code', referralCode)
+              .single()
+
+          if (!referrerError && referrerProfile) {
           // Extract IP from request headers
           const forwardedFor = request.headers.get('x-forwarded-for')
           const ip = forwardedFor
@@ -82,14 +93,24 @@ export async function GET(request: Request) {
             console.error('Failed to create referral:', referralError)
           }
         }
+        }
       }
 
       // Award signup bonus on initial email verification only
-      // Guard A: Only run on email verification flow (not recovery/magiclink)
-      const flowType = requestUrl.searchParams.get('type')
-      if (flowType === 'recovery' || flowType === 'magiclink') {
-        // Skip signup bonus for password reset and magic link flows
-        return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+      // PKCE flow does not forward 'type' param — use timestamp proximity to detect first login instead.
+      const userCreatedAt = new Date(user.created_at)
+      const lastSignInAt = user.last_sign_in_at
+        ? new Date(user.last_sign_in_at)
+        : null
+
+      if (lastSignInAt) {
+        const timeDiffSeconds =
+          (lastSignInAt.getTime() - userCreatedAt.getTime()) / 1000
+
+        if (timeDiffSeconds > 60) {
+          // Not a first login — skip signup bonus
+          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+        }
       }
 
       const { data: gameConfig, error: configError } = await createAdminClient()
@@ -144,9 +165,10 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
 
-        // Award signup bonus in a transaction-like pattern
-        // This inline credit logic will be replaced by awardCredits() from packages/api/src/credits.ts in PR 3-A. Keep both in sync until then.
-        const { error: txnError } = await adminClient
+        // TODO PR 3-A: Replace this entire bonus block with awardCredits() from packages/api/src/credits.ts
+        // which performs credit_transactions insert + user_credits update atomically in one transaction.
+        // The current non-atomic implementation is intentional scaffolding only.
+        const { data: txnData, error: txnError } = await adminClient
           .from('credit_transactions')
           .insert({
             user_id: user.id,
@@ -154,9 +176,10 @@ export async function GET(request: Request) {
             type: 'GAME_CREDITS',
             reason: 'signup_bonus',
           })
+          .select('id')
+          .single()
 
-        if (!txnError) {
-          // FIX 3: Destructure RPC error and log if present
+        if (!txnError && txnData) {
           const { error: rpcError } = await adminClient.rpc(
             'increment_user_credits',
             {
@@ -169,7 +192,9 @@ export async function GET(request: Request) {
           if (rpcError) {
             console.error(
               'increment_user_credits RPC failed — ledger mismatch possible',
-              rpcError
+              rpcError,
+              'credit_transactions row id:',
+              txnData.id
             )
           }
         }
