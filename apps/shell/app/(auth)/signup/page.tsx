@@ -1,14 +1,24 @@
 'use client'
 
 import { signupAction } from './actions'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function SignupPage() {
+function SignupForm() {
   const [error, setError] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Capture ?ref=[CODE] from URL
+    const ref = searchParams.get('ref')
+    if (ref) {
+      setReferralCode(ref)
+    }
+  }, [searchParams])
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -30,6 +40,9 @@ export default function SignupPage() {
     }
 
     const formData = new FormData(e.currentTarget)
+    if (referralCode) {
+      formData.append('referralCode', referralCode)
+    }
     const result = await signupAction(formData)
 
     if (result?.redirect) {
@@ -95,5 +108,19 @@ export default function SignupPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   )
 }
