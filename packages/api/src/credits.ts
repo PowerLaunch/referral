@@ -163,7 +163,7 @@ export async function voidPendingCredits(
   // Voiding these prevents the referrer from earning on their own fraud.
   const { data: asReferrer, error: referrerError } = await adminClient
     .from('referrals')
-    .select('id')
+    .select('id, referrer_id')
     .eq('referrer_id', userId)
     .eq('status', 'PENDING')
 
@@ -177,7 +177,7 @@ export async function voidPendingCredits(
   // Voiding these prevents the referrer from earning credits from a fraudulent signup.
   const { data: asReferee, error: refereeError } = await adminClient
     .from('referrals')
-    .select('id')
+    .select('id, referrer_id')
     .eq('referee_id', userId)
     .eq('status', 'PENDING')
 
@@ -188,11 +188,15 @@ export async function voidPendingCredits(
   }
 
   // Merge both result sets. Deduplicate by id (shouldn't overlap, but be safe).
-  const allIds = new Set([
-    ...(asReferrer ?? []).map((r) => r.id),
-    ...(asReferee ?? []).map((r) => r.id),
-  ])
-  const pendingReferrals = Array.from(allIds).map((id) => ({ id }))
+  const seen = new Set<string>()
+  const pendingReferrals: { id: string; referrer_id: string }[] = []
+
+  for (const r of [...(asReferrer ?? []), ...(asReferee ?? [])]) {
+    if (!seen.has(r.id)) {
+      seen.add(r.id)
+      pendingReferrals.push({ id: r.id, referrer_id: r.referrer_id })
+    }
+  }
 
   // Covers two fraud scenarios:
   // 1. Flagged user is referrer — they created fake referrals to earn credits.
@@ -264,10 +268,13 @@ export async function voidPendingCredits(
       // Insert credit_transactions entry for audit trail
       // Amount is 0 — this is a record that anticipated credits were voided,
       // not an actual balance change.
+      // Ledger entry goes to the referrer — they are the one who would have
+      // received the credit. When flagged user is the referee, referrer_id
+      // differs from userId. When flagged user is the referrer, they are the same.
       const { error: ledgerError } = await adminClient
         .from('credit_transactions')
         .insert({
-          user_id: userId,
+          user_id: referral.referrer_id,
           amount: 0,
           type: 'CASH_BALANCE',
           reason: `referral_voided: ${reason} (referral: ${referral.id})`,
