@@ -169,8 +169,10 @@ export async function GET(request: NextRequest): Promise<Response> {
         referrerId,
         RECURRING_REWARD_AMOUNT,
         'CASH_BALANCE',
-        `recurring_reward_${rewardMonth}`
+        `recurring_reward:${referralId}:${rewardMonth}`
       )
+      // Includes referral ID so each ledger entry is traceable to its source referral.
+      // Pattern matches recurring_reward_logs dedup key for auditability.
       awarded++
     } catch (err) {
       console.error(

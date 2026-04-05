@@ -33,14 +33,23 @@ export async function handlePayoutFailure(
   }
 
   // Step 2: Credit funds back to user
-  await awardCredits(
-    payout.user_id as string,
-    payout.amount as number,
-    'CASH_BALANCE',
-    `payout_failed_refund:${payoutId}`
-  )
-  // Payout ID in reason enables partial unique index idempotency guard.
-  // Prevents duplicate refunds if webhook is retried concurrently.
+  try {
+    await awardCredits(
+      payout.user_id as string,
+      payout.amount as number,
+      'CASH_BALANCE',
+      `payout_failed_refund:${payoutId}`
+    )
+  } catch (err: unknown) {
+    const pgErr = err as { code?: string }
+    if (pgErr?.code === '23505') {
+      // Duplicate refund — already credited on a previous attempt.
+      // Safe to continue to Step 3 to ensure payout is marked FAILED.
+      console.log(`Refund already applied for payout ${payoutId} — continuing to status update`)
+    } else {
+      throw err
+    }
+  }
 
   // Step 3: Update payout record
   const { error: updateError } = await adminClient
@@ -54,6 +63,9 @@ export async function handlePayoutFailure(
       ).toISOString(),
     })
     .eq('id', payoutId)
+    .in('status', ['PENDING', 'PROCESSING'])
+  // Never overwrite COMPLETED with FAILED — concurrent success webhook wins.
+  // If 0 rows updated (payout already COMPLETED), log and return safely.
 
   if (updateError) {
     // Critical: user has been refunded but payout still shows old status.
@@ -61,6 +73,8 @@ export async function handlePayoutFailure(
     console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED after refund:`, updateError.message)
     throw new Error(`Payout status update failed for ${payoutId}: ${updateError.message}`)
   }
+  // Note: if payout was already COMPLETED, update affects 0 rows (no error).
+  // This is safe — COMPLETED is the desired terminal state.
 
   // Step 4: Send E4 notification (failure does not block)
   try {
