@@ -186,11 +186,12 @@ export async function voidPendingCredits(
   for (const referral of pendingReferrals) {
     try {
       // Update status to VOIDED
-      const { error: updateError } = await adminClient
+      const { data: updatedRows, error: updateError } = await adminClient
         .from('referrals')
         .update({ status: 'VOIDED' })
         .eq('id', referral.id)
         .eq('status', 'PENDING') // Guard: only void if still PENDING (prevent race)
+        .select('id')
 
       if (updateError) {
         console.error(
@@ -199,6 +200,17 @@ export async function voidPendingCredits(
         )
         continue
       }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        // Zero rows updated — referral was already confirmed or voided by a concurrent process.
+        // Skip audit log and credit_transactions entry — nothing was actually voided.
+        console.log(
+          `Referral ${referral.id} already transitioned — skipping void`
+        )
+        continue
+      }
+
+      // Only reach here if the update actually modified the row.
 
       // Insert audit log
       await adminClient.from('referral_audit_logs').insert({
