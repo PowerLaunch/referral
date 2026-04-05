@@ -43,7 +43,6 @@ export async function handlePayoutFailure(
     .update({
       status: 'FAILED',
       provider_error_code: errorCode,
-      retry_count: (payout.retry_count as number) + 1,
       retry_available_at: new Date(
         Date.now() + 24 * 60 * 60 * 1000
       ).toISOString(),
@@ -67,6 +66,18 @@ export async function handlePayoutFailure(
     console.log(`Payout ${payoutId} already in terminal state — skipping refund and E4 email`)
     return
   }
+
+  // Use DB-side increment to avoid lost updates from concurrent failure webhooks.
+  // Two concurrent calls reading retry_count=0 would both write 1 with client-side math.
+  // The raw SQL expression increments atomically on the DB side.
+  const { data: newRetryCount, error: retryError } = await adminClient
+    .rpc('increment_payout_retry', { p_payout_id: payoutId })
+
+  if (retryError) {
+    console.error(`Failed to increment retry_count for payout ${payoutId}:`, retryError.message)
+  }
+
+  const retryCount = (newRetryCount as number) ?? (payout.retry_count as number) + 1
 
   // Step 3 (formerly Step 2) — Refund only after FAILED status is confirmed
   // At this point we own the FAILED transition. Safe to refund.
@@ -100,8 +111,7 @@ export async function handlePayoutFailure(
   }
 
   // Step 5: Auto-retry stub for transient errors
-  const newRetryCount = (payout.retry_count as number) + 1
-  if (isTransient && newRetryCount < 2) {
+  if (isTransient && retryCount < 2) {
     // Use post-increment value. First failure: newRetryCount=1, eligible for auto-retry.
     // Second failure: newRetryCount=2, no more auto-retry.
     // TODO PR 5-B: Schedule automatic retry after 1 hour via Vercel Cron or queue.

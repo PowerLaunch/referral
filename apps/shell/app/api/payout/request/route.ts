@@ -3,8 +3,9 @@
 // GAME_CREDITS are non-cashable — only CASH_BALANCE can be cashed out.
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getBalance } from '@referral/api/credits'
+// Uses shared singleton from @referral/api — consistent with all
+// other server-side routes. Never import createAdminClient from apps directly.
+import { getAdminClient, getBalance } from '@referral/api/credits'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -70,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const payoutMethod = method as PayoutMethod
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Step 3 — Guards
 
@@ -148,7 +149,7 @@ export async function POST(request: Request): Promise<Response> {
         {
           error: `Minimum payout for ${payoutMethod} is $${MINIMUM_PAYOUT[payoutMethod] / 100}`,
         },
-        { status: 403 }
+        { status: 400 }
       )
     }
 
@@ -156,7 +157,7 @@ export async function POST(request: Request): Promise<Response> {
     // Note: the RPC also checks balance, but pre-checking here gives a clean error.
     const balance = await getBalance(user.id, 'CASH_BALANCE')
     if (balance < amount) {
-      return Response.json({ error: 'Insufficient balance' }, { status: 403 })
+      return Response.json({ error: 'Insufficient balance' }, { status: 400 })
     }
 
     // Guard H-pre: Prevent concurrent in-flight payouts
@@ -234,7 +235,7 @@ export async function POST(request: Request): Promise<Response> {
           {
             error: `Payout cooldown active. Try again in ${remaining} days.`,
           },
-          { status: 403 }
+          { status: 429 }
         )
       }
     }
