@@ -48,8 +48,9 @@ export function getRiskCategory(
 ): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
   if (score <= 30) return 'LOW'
   if (score <= 60) return 'MEDIUM'
-  if (score <= 100) return 'HIGH'
+  if (score < 100) return 'HIGH'
   return 'CRITICAL'
+  // Note: score of exactly 100 is CRITICAL per spec Section 6.4 (100+ = CRITICAL).
 }
 
 /**
