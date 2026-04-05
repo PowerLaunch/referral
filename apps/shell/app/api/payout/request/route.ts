@@ -245,6 +245,9 @@ export async function POST(request: Request): Promise<Response> {
     // Step 5 — Create payout atomically
     // The RPC atomically deducts CASH_BALANCE and inserts the payout row.
     // If the deduction fails (insufficient balance race), the whole thing rolls back.
+    // Guard H-pre catches the common case. The unique index on payouts(user_id)
+    // WHERE status IN ('PENDING','PENDING_MANUAL_APPROVAL','PROCESSING') is the
+    // atomic enforcement layer that catches concurrent requests Guard H-pre misses.
     const { data: payoutId, error: rpcError } = await adminClient.rpc(
       'create_payout',
       {
@@ -256,6 +259,13 @@ export async function POST(request: Request): Promise<Response> {
     )
 
     if (rpcError) {
+      if (rpcError.code === '23505') {
+        // Concurrent request already created a pending payout — unique index blocked this one.
+        return Response.json(
+          { error: 'You already have a payout in progress. Wait for it to complete before requesting another.' },
+          { status: 403 }
+        )
+      }
       console.error('create_payout RPC error:', rpcError)
       return Response.json({ error: 'Payout creation failed' }, { status: 500 })
     }

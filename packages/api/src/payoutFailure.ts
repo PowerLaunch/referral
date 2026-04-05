@@ -52,7 +52,7 @@ export async function handlePayoutFailure(
   }
 
   // Step 3: Update payout record
-  const { error: updateError } = await adminClient
+  const { data: updatedRows, error: updateError } = await adminClient
     .from('payouts')
     .update({
       status: 'FAILED',
@@ -64,20 +64,23 @@ export async function handlePayoutFailure(
     })
     .eq('id', payoutId)
     .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+    .select('id')
   // PENDING_MANUAL_APPROVAL: first payouts start in this status.
   // A failure webhook on a first payout must still mark it FAILED,
   // otherwise admin approval would trigger a double-pay after the user was refunded.
   // Never overwrite COMPLETED with FAILED — concurrent success webhook wins.
-  // If 0 rows updated (payout already COMPLETED), log and return safely.
 
   if (updateError) {
-    // Critical: user has been refunded but payout still shows old status.
-    // Log loudly — admin must manually reconcile.
-    console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED after refund:`, updateError.message)
-    throw new Error(`Payout status update failed for ${payoutId}: ${updateError.message}`)
+    console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED:`, updateError.message)
+    throw new Error(`Payout status update failed: ${updateError.message}`)
   }
-  // Note: if payout was already COMPLETED, update affects 0 rows (no error).
-  // This is safe — COMPLETED is the desired terminal state.
+
+  if (!updatedRows || updatedRows.length === 0) {
+    // Zero rows updated — payout already reached a terminal state (e.g. COMPLETED).
+    // Do not send E4 email — the payout succeeded. Return early.
+    console.log(`Payout ${payoutId} already in terminal state — skipping E4 email`)
+    return
+  }
 
   // Step 4: Send E4 notification (failure does not block)
   try {
