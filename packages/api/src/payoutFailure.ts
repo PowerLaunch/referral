@@ -1,6 +1,7 @@
 // Payout failure handler.
 // Called when a payment provider reports a failed payout.
-// Refunds the user's CASH_BALANCE, updates the payout record, and sends E4 email.
+// Claims FAILED status first, then refunds the user's CASH_BALANCE, then sends E4 email.
+// Claiming FAILED before refunding prevents double-pay if a concurrent success webhook races.
 // Email failure does not block the failure handling flow.
 
 import { awardCredits, getAdminClient } from './credits'
@@ -32,26 +33,11 @@ export async function handlePayoutFailure(
     return
   }
 
-  // Step 2: Credit funds back to user
-  try {
-    await awardCredits(
-      payout.user_id as string,
-      payout.amount as number,
-      'CASH_BALANCE',
-      `payout_failed_refund:${payoutId}`
-    )
-  } catch (err: unknown) {
-    const pgErr = err as { code?: string }
-    if (pgErr?.code === '23505') {
-      // Duplicate refund — already credited on a previous attempt.
-      // Safe to continue to Step 3 to ensure payout is marked FAILED.
-      console.log(`Refund already applied for payout ${payoutId} — continuing to status update`)
-    } else {
-      throw err
-    }
-  }
-
-  // Step 3: Update payout record
+  // Step 2 (formerly Step 3) — Claim payout as FAILED first (atomic guard)
+  // IMPORTANT: Status must be claimed as FAILED before refunding.
+  // If we refund first and a concurrent success webhook wins the status race,
+  // the user receives both the completed payout and the refund (double-pay).
+  // Claiming FAILED first means: if 0 rows updated, we return before refunding.
   const { data: updatedRows, error: updateError } = await adminClient
     .from('payouts')
     .update({
@@ -76,10 +62,28 @@ export async function handlePayoutFailure(
   }
 
   if (!updatedRows || updatedRows.length === 0) {
-    // Zero rows updated — payout already reached a terminal state (e.g. COMPLETED).
-    // Do not send E4 email — the payout succeeded. Return early.
-    console.log(`Payout ${payoutId} already in terminal state — skipping E4 email`)
+    // Payout already in terminal state (e.g. COMPLETED by concurrent success webhook).
+    // Do NOT refund — the payout succeeded. Return early.
+    console.log(`Payout ${payoutId} already in terminal state — skipping refund and E4 email`)
     return
+  }
+
+  // Step 3 (formerly Step 2) — Refund only after FAILED status is confirmed
+  // At this point we own the FAILED transition. Safe to refund.
+  try {
+    await awardCredits(
+      payout.user_id as string,
+      payout.amount as number,
+      'CASH_BALANCE',
+      `payout_failed_refund:${payoutId}`
+    )
+  } catch (err: unknown) {
+    const pgErr = err as { code?: string }
+    if (pgErr?.code === '23505') {
+      console.log(`Refund already applied for payout ${payoutId} — continuing`)
+    } else {
+      throw err
+    }
   }
 
   // Step 4: Send E4 notification (failure does not block)
