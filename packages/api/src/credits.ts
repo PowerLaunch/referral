@@ -213,22 +213,44 @@ export async function voidPendingCredits(
       // Only reach here if the update actually modified the row.
 
       // Insert audit log
-      await adminClient.from('referral_audit_logs').insert({
-        referral_id: referral.id,
-        action: 'VOIDED' as any, // VOIDED added to CHECK in migration
-        reason,
-        triggered_by: null,
-      })
+      const { error: auditError } = await adminClient
+        .from('referral_audit_logs')
+        .insert({
+          referral_id: referral.id,
+          action: 'VOIDED' as any, // VOIDED added to CHECK in migration
+          reason,
+          triggered_by: null,
+        })
+
+      if (auditError) {
+        console.error(
+          `Audit log insert failed for voided referral ${referral.id}:`,
+          auditError.message
+        )
+        // Referral is already VOIDED — log the discrepancy but do not un-void.
+        // Admin can reconcile via the referral status directly.
+      }
 
       // Insert credit_transactions entry for audit trail
       // Amount is 0 — this is a record that anticipated credits were voided,
       // not an actual balance change.
-      await adminClient.from('credit_transactions').insert({
-        user_id: userId,
-        amount: 0,
-        type: 'CASH_BALANCE',
-        reason: `referral_voided: ${reason} (referral: ${referral.id})`,
-      })
+      const { error: ledgerError } = await adminClient
+        .from('credit_transactions')
+        .insert({
+          user_id: userId,
+          amount: 0,
+          type: 'CASH_BALANCE',
+          reason: `referral_voided: ${reason} (referral: ${referral.id})`,
+        })
+
+      if (ledgerError) {
+        console.error(
+          `Ledger insert failed for voided referral ${referral.id}:`,
+          ledgerError.message
+        )
+        // Log discrepancy — referral is VOIDED but ledger entry is missing.
+        // Admin can reconcile. Do not un-void.
+      }
 
       voidedCount++
     } catch (err) {
