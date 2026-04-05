@@ -77,6 +77,69 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   for (const referral of pendingReferrals) {
     try {
+      // --- Criterion 0: Payment collateralization (added in 3-B-patch) ---
+      // The referee's subscription payment must be settled and past the
+      // 48-hour refund window before any referral can confirm against it.
+
+      if (referral.payment_event_id) {
+        // Payment event is linked — verify it's settled
+        const { data: paymentEvent, error: paymentError } = await adminClient
+          .from('payment_events')
+          .select('status, created_at')
+          .eq('id', referral.payment_event_id)
+          .single()
+
+        if (paymentError || !paymentEvent) {
+          console.log(
+            `Referral ${referral.id} skipped: payment_event lookup failed`
+          )
+          skipped++
+          continue
+        }
+
+        if (paymentEvent.status !== 'COMPLETED') {
+          console.log(
+            `Referral ${referral.id} skipped: payment_not_settled ` +
+              `(status: ${paymentEvent.status})`
+          )
+          skipped++
+          continue
+        }
+
+        // Check 48-hour refund window
+        const paymentAge =
+          Date.now() - new Date(paymentEvent.created_at).getTime()
+        const REFUND_WINDOW_MS = 48 * 60 * 60 * 1000 // 48 hours in ms
+
+        if (paymentAge < REFUND_WINDOW_MS) {
+          const hoursRemaining = Math.ceil(
+            (REFUND_WINDOW_MS - paymentAge) / (60 * 60 * 1000)
+          )
+          console.log(
+            `Referral ${referral.id} skipped: payment_refund_window_open ` +
+              `(${hoursRemaining}h remaining)`
+          )
+          skipped++
+          continue
+        }
+      } else {
+        // No payment_event_id linked yet.
+        // This happens for referrals created before PR 5-A (payment integration).
+        // Two options:
+        //   A) Skip confirmation until payment is linked (strict)
+        //   B) Allow confirmation without payment collateral (lenient, for pre-payment PRs)
+        //
+        // During development (before PR 5-A), use option B so the confirmation cron
+        // can be tested without real payments. After PR 5-A, switch to option A.
+        //
+        // For now: allow through with a warning log.
+        // TODO PR 5-A: Change this to skip confirmation when payment_event_id is null.
+        console.log(
+          `Referral ${referral.id}: no payment_event_id linked. ` +
+            `Proceeding without payment collateral (pre-PR-5-A behavior).`
+        )
+      }
+
       // a) Check referee email verified
       // Check how email verification status is stored in your schema
       // Using Supabase auth.admin.getUserById to check email_confirmed_at

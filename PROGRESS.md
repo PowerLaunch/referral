@@ -178,3 +178,4 @@ Complete these before starting PR 5-A:
 | 2026-04-04 | feat/referral-confirmation | PR #11 merged | feat: Referral confirmation cron job (PR 3-B) |
 | 2026-04-04 | feat/maturity-checkpoint | PR 3-C | Maturity checkpoint: freeze/unfreeze RPCs, webhook stub |
 | 2026-04-04 | feat/maturity-checkpoint | PR #12 merged | PR 3-C: Maturity checkpoint (freeze/unfreeze referral lock timers) |
+| 2026-04-05 | feat/referral-confirmation-patch | PR 3-B-patch | Payment collateral check, voidPendingCredits, fraud void hook |

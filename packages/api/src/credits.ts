@@ -136,3 +136,94 @@ export async function getBalance(
 
   return data.amount
 }
+
+/**
+ * Void all PENDING referrals for a user (fraud response)
+ * PENDING referrals represent anticipated future credits — they are NOT yet
+ * in user_credits (the balance table). They only exist as referral rows.
+ * Voiding them prevents future confirmation, not current balance.
+ *
+ * This does NOT touch CASH_BALANCE or GAME_CREDITS in user_credits.
+ * If the user has already-confirmed credits, those remain — this only
+ * prevents PENDING referrals from ever confirming.
+ *
+ * @param userId - The referrer's user ID
+ * @param reason - Reason for voiding (e.g., "Auto-voided: CRITICAL fraud flag R1")
+ * @returns Object with count of voided referrals
+ */
+export async function voidPendingCredits(
+  userId: string,
+  reason: string
+): Promise<{ voided: number }> {
+  const adminClient = getAdminClient()
+
+  // Step 1: Find all PENDING referrals for this referrer
+  const { data: pendingReferrals, error: findError } = await adminClient
+    .from('referrals')
+    .select('id')
+    .eq('referrer_id', userId)
+    .eq('status', 'PENDING')
+
+  if (findError) {
+    throw new Error(
+      `Failed to query pending referrals for user ${userId}: ${findError.message}`
+    )
+  }
+
+  if (!pendingReferrals || pendingReferrals.length === 0) {
+    return { voided: 0 } // No pending referrals — graceful no-op
+  }
+
+  // Step 2: Void each referral with audit trail
+  // Ideally this would be a single transaction. Since Supabase JS can't do
+  // multi-statement transactions, use a Postgres RPC for atomicity.
+  // But we don't have a void_referrals RPC yet, and adding one for a patch PR
+  // is overkill. Process row-by-row — the max pending per user is 5 (spec
+  // Section 2.9), so the loop is tiny.
+
+  let voidedCount = 0
+
+  for (const referral of pendingReferrals) {
+    try {
+      // Update status to VOIDED
+      const { error: updateError } = await adminClient
+        .from('referrals')
+        .update({ status: 'VOIDED' })
+        .eq('id', referral.id)
+        .eq('status', 'PENDING') // Guard: only void if still PENDING (prevent race)
+
+      if (updateError) {
+        console.error(
+          `Failed to void referral ${referral.id}:`,
+          updateError.message
+        )
+        continue
+      }
+
+      // Insert audit log
+      await adminClient.from('referral_audit_logs').insert({
+        referral_id: referral.id,
+        action: 'VOIDED' as any, // VOIDED added to CHECK in migration
+        reason,
+        triggered_by: null,
+      })
+
+      // Insert credit_transactions entry for audit trail
+      // Amount is 0 — this is a record that anticipated credits were voided,
+      // not an actual balance change.
+      await adminClient.from('credit_transactions').insert({
+        user_id: userId,
+        amount: 0,
+        type: 'CASH_BALANCE',
+        reason: `referral_voided: ${reason} (referral: ${referral.id})`,
+      })
+
+      voidedCount++
+    } catch (err) {
+      console.error(`Error voiding referral ${referral.id}:`, err)
+      continue // Don't abort the loop on one failure
+    }
+  }
+
+  return { voided: voidedCount }
+}
