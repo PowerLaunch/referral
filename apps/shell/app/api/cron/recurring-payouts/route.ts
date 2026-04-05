@@ -6,8 +6,9 @@
 // $1 = 100 credit units (100 credits = $1 per spec exchange rate).
 
 import { NextRequest } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { awardCredits } from '@referral/api/credits'
+// Uses getAdminClient() from @referral/api/credits so all DB operations in this
+// cron (log insert, credit award, log delete) share the same client instance.
+import { getAdminClient, awardCredits } from '@referral/api/credits'
 
 const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 // TODO PR 7-G: Check influencer_codes for custom caps. For now, use 15 for all.
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Reward month is based on UTC date when cron runs.
   const rewardMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
 
-  const adminClient = createAdminClient()
+  const adminClient = getAdminClient()
 
   // Step 3 — Find eligible referrals
   // Referral must be CONFIRMED, referee must have active subscription,

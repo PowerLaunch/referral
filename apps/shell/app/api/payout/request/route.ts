@@ -244,8 +244,23 @@ export async function POST(request: Request): Promise<Response> {
     // This endpoint exclusively operates on CASH_BALANCE. No code path exists
     // to cash out GAME_CREDITS.
 
-    // Step 4 — Determine first-payout flag (reuse completedCount from Guard H)
-    const isFirst = completedCount === 0
+    // Step 4 — Re-query completed count immediately before RPC to minimize race window.
+    // completedCount from Guard H may be stale if a concurrent payout completed
+    // between Guard H and here.
+    const { count: freshCompletedCount, error: freshCountError } = await adminClient
+      .from('payouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'COMPLETED')
+
+    if (freshCountError) {
+      return Response.json({ error: 'Internal error' }, { status: 500 })
+    }
+
+    // Fresh query minimizes (but cannot eliminate) the race window.
+    // is_first_payout being wrong is low financial risk: PENDING_MANUAL_APPROVAL
+    // requires admin approval regardless, so a wrong flag only affects queue routing.
+    const isFirst = (freshCompletedCount ?? 0) === 0
 
     // Step 5 — Create payout atomically
     // The RPC atomically deducts CASH_BALANCE and inserts the payout row.
