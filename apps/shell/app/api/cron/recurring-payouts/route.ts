@@ -173,32 +173,32 @@ export async function GET(request: NextRequest): Promise<Response> {
       // — the admin can manually reconcile. The unsafe direction (award-then-log) could
       // double-pay if the log insert fails.
       let creditAwarded = false
-      await awardCredits(
-        referrerId,
-        RECURRING_REWARD_AMOUNT,
-        'CASH_BALANCE',
-        `recurring_reward:${referralId}:${rewardMonth}`
-      )
-        .then(() => { creditAwarded = true })
-        .catch(async (creditErr) => {
-          console.error(`awardCredits failed for referral ${referralId}:`, creditErr)
-          // Remove the log row so next month's cron can retry this referral.
-          const { error: deleteError } = await adminClient
-            .from('recurring_reward_logs')
-            .delete()
-            .eq('referral_id', referralId)
-            .eq('reward_month', rewardMonth)
+      try {
+        await awardCredits(
+          referrerId,
+          RECURRING_REWARD_AMOUNT,
+          'CASH_BALANCE',
+          `recurring_reward:${referralId}:${rewardMonth}`
+        )
+        creditAwarded = true
+      } catch (creditErr) {
+        console.error(`awardCredits failed for referral ${referralId}:`, creditErr)
+        // Remove log row so next cron run can retry this referral this month.
+        const { error: deleteError } = await adminClient
+          .from('recurring_reward_logs')
+          .delete()
+          .eq('referral_id', referralId)
+          .eq('reward_month', rewardMonth)
 
-          if (deleteError) {
-            console.error(
-              `CRITICAL: Failed to remove recurring_reward_log for referral ${referralId} ` +
-              `month ${rewardMonth}. This referral will not retry this month — admin must ` +
-              `manually delete the log row to unblock it:`,
-              deleteError.message
-            )
-          }
-          errors++
-        })
+        if (deleteError) {
+          console.error(
+            `CRITICAL: Failed to remove recurring_reward_log for referral ${referralId} ` +
+            `month ${rewardMonth}. Admin must manually delete to unblock retry:`,
+            deleteError.message
+          )
+        }
+        errors++
+      }
 
       if (creditAwarded) {
         // Includes referral ID so each ledger entry is traceable to its source referral.

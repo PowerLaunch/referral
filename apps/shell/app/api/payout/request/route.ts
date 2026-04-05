@@ -187,7 +187,7 @@ export async function POST(request: Request): Promise<Response> {
     // cooldown before the third payout, not 14-day.
     const { data: lastCompleted, error: lastCompletedError } = await adminClient
       .from('payouts')
-      .select('created_at')
+      .select('created_at, completed_at')
       .eq('user_id', user.id)
       .eq('status', 'COMPLETED')
       .order('created_at', { ascending: false })
@@ -219,11 +219,16 @@ export async function POST(request: Request): Promise<Response> {
       // count > 1: subsequent payouts → 14 days
       const cooldownDays = completedCount === 1 ? 30 : 14
       const cooldownMs = cooldownDays * MS_PER_DAY
-      const lastCompletedTime = new Date(lastCompleted.created_at).getTime()
 
-      if (Date.now() < lastCompletedTime + cooldownMs) {
+      // completed_at is when the payout status changed to COMPLETED.
+      // Falls back to created_at for rows before this column was added.
+      // TODO PR 5-B: Set completed_at = now() when executePayout marks status COMPLETED.
+      // For MVP, completed_at falls back to created_at (conservative — slightly longer cooldown).
+      const completionTime = (lastCompleted.completed_at ?? lastCompleted.created_at) as string
+
+      if (Date.now() < new Date(completionTime).getTime() + cooldownMs) {
         const remaining = Math.ceil(
-          (lastCompletedTime + cooldownMs - Date.now()) / MS_PER_DAY
+          (new Date(completionTime).getTime() + cooldownMs - Date.now()) / MS_PER_DAY
         )
         return Response.json(
           {
