@@ -16,6 +16,7 @@ Format: Date | What was added | Why | Which files changed
 |------|----------|--------|---------------|
 | 2026-04-05 | PR 3-B-patch: Payment collateralization gate on confirmation cron | Prevents referral confirmation against unsettled or refundable payments | confirm-referrals/route.ts, migration 20260405000001 |
 | 2026-04-05 | PR 3-B-patch: voidPendingCredits() + VOIDED referral status | Auto-voids pending referrals on CRITICAL fraud flag | packages/api/src/credits.ts, packages/api/src/fraudRules.ts, migration 20260405000001 |
+| 2026-04-05 | PR 3-B-patch fix: voidPendingCredits now covers both referrer and referee roles | BugBot catch — fraudulent referee's referrer would otherwise still earn credits | packages/api/src/credits.ts |
 
 ---
 

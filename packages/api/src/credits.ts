@@ -157,18 +157,48 @@ export async function voidPendingCredits(
 ): Promise<{ voided: number }> {
   const adminClient = getAdminClient()
 
-  // Step 1: Find all PENDING referrals for this referrer
-  const { data: pendingReferrals, error: findError } = await adminClient
+  // Step 1: Find all PENDING referrals for this user (both roles)
+
+  // Query 1: referrals where flagged user is the REFERRER
+  // Voiding these prevents the referrer from earning on their own fraud.
+  const { data: asReferrer, error: referrerError } = await adminClient
     .from('referrals')
     .select('id')
     .eq('referrer_id', userId)
     .eq('status', 'PENDING')
 
-  if (findError) {
+  if (referrerError) {
     throw new Error(
-      `Failed to query pending referrals for user ${userId}: ${findError.message}`
+      `Failed to query referrer-side referrals for user ${userId}: ${referrerError.message}`
     )
   }
+
+  // Query 2: referrals where flagged user is the REFEREE
+  // Voiding these prevents the referrer from earning credits from a fraudulent signup.
+  const { data: asReferee, error: refereeError } = await adminClient
+    .from('referrals')
+    .select('id')
+    .eq('referee_id', userId)
+    .eq('status', 'PENDING')
+
+  if (refereeError) {
+    throw new Error(
+      `Failed to query referee-side referrals for user ${userId}: ${refereeError.message}`
+    )
+  }
+
+  // Merge both result sets. Deduplicate by id (shouldn't overlap, but be safe).
+  const allIds = new Set([
+    ...(asReferrer ?? []).map((r) => r.id),
+    ...(asReferee ?? []).map((r) => r.id),
+  ])
+  const pendingReferrals = Array.from(allIds).map((id) => ({ id }))
+
+  // Covers two fraud scenarios:
+  // 1. Flagged user is referrer — they created fake referrals to earn credits.
+  // 2. Flagged user is referee — their referrer would earn from a fraudulent signup.
+  // Both referral rows are voided. The referrer in scenario 2 is not banned here —
+  // they may be innocent. The void simply prevents the payout from a bad signup.
 
   if (!pendingReferrals || pendingReferrals.length === 0) {
     return { voided: 0 } // No pending referrals — graceful no-op
