@@ -40,8 +40,8 @@ CREATE INDEX IF NOT EXISTS idx_referrals_payment_event
 -- PART 2: Add VOIDED to referrals.status CHECK constraint
 -- ==============================================================================
 
--- Current CHECK allows: PENDING, ACTIVE, CONFIRMED, REJECTED, FROZEN
--- Add VOIDED for fraud-voided referrals.
+-- Current CHECK allows: PENDING, CONFIRMED, REJECTED (from 20260404000001)
+-- Adding: VOIDED for fraud-voided referrals
 
 -- Drop existing status check constraint:
 DO $$
@@ -62,7 +62,12 @@ END $$;
 
 -- Recreate with VOIDED added:
 ALTER TABLE referrals ADD CONSTRAINT referrals_status_check
-  CHECK (status IN ('PENDING', 'ACTIVE', 'CONFIRMED', 'REJECTED', 'FROZEN', 'VOIDED'));
+  CHECK (status IN ('PENDING', 'CONFIRMED', 'REJECTED', 'VOIDED'));
+
+-- Note: Only adds VOIDED to the original set (PENDING, CONFIRMED, REJECTED).
+-- ACTIVE and FROZEN are not valid referral statuses in this schema and must
+-- not be introduced here. The original constraint from 20260404000001 only
+-- included PENDING, CONFIRMED, REJECTED.
 
 -- ==============================================================================
 -- PART 3: Add VOIDED to referral_audit_logs.action CHECK constraint
