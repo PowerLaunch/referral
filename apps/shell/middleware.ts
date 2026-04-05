@@ -40,6 +40,20 @@ export async function middleware(request: NextRequest) {
   // (Guard A and Guard B in /api/payout/request/route.ts). Middleware runs on
   // Edge Runtime where the service-role admin client is not compatible.
 
+  // Redirect BANNED users to /account-frozen for all non-public routes.
+  // Uses cookie-based supabase client only (Edge Runtime compatible).
+  // trust_level is read from the user's JWT metadata if available,
+  // otherwise skip this check — route handlers enforce it with admin client.
+  const trustLevel = user.user_metadata?.trust_level as string | undefined
+  if (trustLevel === 'BANNED') {
+    const frozenUrl = new URL('/account-frozen', request.url)
+    return NextResponse.redirect(frozenUrl)
+  }
+  // Note: trust_level in JWT metadata is only reliable if updated on every
+  // trust_level change (PR 4-D wires this). For now this is best-effort.
+  // Route-level guards are the authoritative enforcement layer.
+  // Full middleware enforcement added in PR 4-D (fraud middleware).
+
   // Session exists and email confirmed → allow through
   return supabaseResponse
 }

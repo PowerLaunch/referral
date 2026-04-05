@@ -172,24 +172,26 @@ export async function GET(request: NextRequest): Promise<Response> {
       // succeeds, the log row exists but no credit was given. This is the SAFE direction
       // — the admin can manually reconcile. The unsafe direction (award-then-log) could
       // double-pay if the log insert fails.
-      const creditResult = await awardCredits(
+      let creditAwarded = false
+      await awardCredits(
         referrerId,
         RECURRING_REWARD_AMOUNT,
         'CASH_BALANCE',
         `recurring_reward:${referralId}:${rewardMonth}`
-      ).catch(async (creditErr) => {
-        console.error(`awardCredits failed for referral ${referralId}:`, creditErr)
-        // Remove the log row so next month's cron can retry this referral.
-        await adminClient
-          .from('recurring_reward_logs')
-          .delete()
-          .eq('referral_id', referralId)
-          .eq('reward_month', rewardMonth)
-        errors++
-        return null
-      })
+      )
+        .then(() => { creditAwarded = true })
+        .catch(async (creditErr) => {
+          console.error(`awardCredits failed for referral ${referralId}:`, creditErr)
+          // Remove the log row so next month's cron can retry this referral.
+          await adminClient
+            .from('recurring_reward_logs')
+            .delete()
+            .eq('referral_id', referralId)
+            .eq('reward_month', rewardMonth)
+          errors++
+        })
 
-      if (creditResult !== null) {
+      if (creditAwarded) {
         // Includes referral ID so each ledger entry is traceable to its source referral.
         // Pattern matches recurring_reward_logs dedup key for auditability.
         awarded++
