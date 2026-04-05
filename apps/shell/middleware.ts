@@ -1,5 +1,4 @@
 import { updateSession } from '@/lib/supabase/middleware'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -37,31 +36,9 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(verifyUrl)
   }
 
-  // Fraud status guard for payout routes.
-  // Full fraud middleware (all routes) built in PR 4-D.
-  // This is payout-specific defense in depth only.
-  //
-  // IMPORTANT: This profiles query only runs for /api/payout/* routes.
-  // Do NOT move this outside the pathname check — querying profiles on every
-  // request would severely degrade performance.
-  if (request.nextUrl.pathname.startsWith('/api/payout')) {
-    const adminClient = createAdminClient()
-
-    const { data: profile } = await adminClient
-      .from('profiles')
-      .select('trust_level')
-      .eq('id', user.id)
-      .single()
-
-    if (
-      profile?.trust_level === 'BANNED' ||
-      profile?.trust_level === 'SUSPICIOUS'
-    ) {
-      // Return JSON error for API routes — never redirect POST requests.
-      // A 307 redirect preserves POST method and would hit /account-frozen with a POST.
-      return NextResponse.json({ error: 'Account restricted' }, { status: 403 })
-    }
-  }
+  // Trust level enforcement for payout routes is handled in the route handler
+  // (Guard A and Guard B in /api/payout/request/route.ts). Middleware runs on
+  // Edge Runtime where the service-role admin client is not compatible.
 
   // Session exists and email confirmed → allow through
   return supabaseResponse

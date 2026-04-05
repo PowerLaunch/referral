@@ -109,11 +109,10 @@ export async function GET(request: Request) {
             // Duplicate signup bonus — idempotent, safe to ignore and continue.
             console.log('Signup bonus already awarded — skipping duplicate')
           } else {
-            // Genuine failure — log but do not block the user from reaching dashboard.
-            // Re-throw is intentional: the outer catch handles unexpected errors.
-            console.error('Failed to award signup bonus:', error)
-            throw error
-          }
+              // Log but do not throw — email_preferences must still be created.
+              // A transient bonus failure should not leave the user without email prefs.
+              console.error('Failed to award signup bonus (non-duplicate error):', error)
+            }
         }
       }
 

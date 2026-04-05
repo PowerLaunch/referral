@@ -100,7 +100,10 @@ export async function handlePayoutFailure(
   }
 
   // Step 5: Auto-retry stub for transient errors
-  if (isTransient && (payout.retry_count as number) < 1) {
+  const newRetryCount = (payout.retry_count as number) + 1
+  if (isTransient && newRetryCount < 2) {
+    // Use post-increment value. First failure: newRetryCount=1, eligible for auto-retry.
+    // Second failure: newRetryCount=2, no more auto-retry.
     // TODO PR 5-B: Schedule automatic retry after 1 hour via Vercel Cron or queue.
     // For now, the retry_available_at is set and admin can trigger manually.
     console.log(
