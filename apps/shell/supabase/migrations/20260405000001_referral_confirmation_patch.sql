@@ -101,6 +101,11 @@ ALTER TABLE referral_audit_logs ADD CONSTRAINT referral_audit_logs_action_check
 -- This replaces the version from 20260404000009 which did not award credits.
 -- Using CREATE OR REPLACE so this is safe to run on any environment.
 
+-- Drop old overload from 20260404000009 (signature: uuid, uuid, text).
+-- CREATE OR REPLACE only replaces identical signatures. Without this DROP,
+-- both overloads coexist and PostgREST cannot resolve which to call (PGRST203).
+DROP FUNCTION IF EXISTS confirm_referral(uuid, uuid, text);
+
 CREATE OR REPLACE FUNCTION confirm_referral(p_referral_id uuid)
 RETURNS void AS $$
 DECLARE
