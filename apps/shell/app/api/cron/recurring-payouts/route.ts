@@ -183,11 +183,20 @@ export async function GET(request: NextRequest): Promise<Response> {
         .catch(async (creditErr) => {
           console.error(`awardCredits failed for referral ${referralId}:`, creditErr)
           // Remove the log row so next month's cron can retry this referral.
-          await adminClient
+          const { error: deleteError } = await adminClient
             .from('recurring_reward_logs')
             .delete()
             .eq('referral_id', referralId)
             .eq('reward_month', rewardMonth)
+
+          if (deleteError) {
+            console.error(
+              `CRITICAL: Failed to remove recurring_reward_log for referral ${referralId} ` +
+              `month ${rewardMonth}. This referral will not retry this month — admin must ` +
+              `manually delete the log row to unblock it:`,
+              deleteError.message
+            )
+          }
           errors++
         })
 

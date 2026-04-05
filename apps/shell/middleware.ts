@@ -46,8 +46,9 @@ export async function middleware(request: NextRequest) {
   // otherwise skip this check — route handlers enforce it with admin client.
   const trustLevel = user.user_metadata?.trust_level as string | undefined
   if (trustLevel === 'BANNED') {
-    const frozenUrl = new URL('/account-frozen', request.url)
-    return NextResponse.redirect(frozenUrl)
+    // Use the existing redirectWithCookies helper to preserve refreshed
+    // Supabase session cookies set by updateSession.
+    return redirectWithCookies('/account-frozen')
   }
   // Note: trust_level in JWT metadata is only reliable if updated on every
   // trust_level change (PR 4-D wires this). For now this is best-effort.
