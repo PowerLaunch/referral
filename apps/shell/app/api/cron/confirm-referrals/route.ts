@@ -51,6 +51,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     .eq('status', 'PENDING')
     .lte('payout_eligible_at', new Date().toISOString())
     .eq('lock_timer_frozen', false)
+    .limit(10000)
+  // Explicit limit above PostgREST default (1000) to prevent silent truncation.
+  // TODO Phase 8: Replace with cursor-based pagination for datasets > 10000 rows.
 
   if (referralsError) {
     console.error('Failed to fetch pending referrals:', referralsError)

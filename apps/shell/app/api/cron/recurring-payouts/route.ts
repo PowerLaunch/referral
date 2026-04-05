@@ -51,6 +51,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       created_at
     `)
     .eq('status', 'CONFIRMED')
+    .limit(10000)
+  // Same rationale — explicit limit prevents silent truncation at scale.
+  // TODO Phase 8: Replace with cursor-based pagination for datasets > 10000 rows.
 
   if (referralsError) {
     console.error('Failed to fetch confirmed referrals:', referralsError)
@@ -72,6 +75,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     .from('subscriptions')
     .select('user_id')
     .eq('status', 'active')
+    .limit(10000)
+  // Explicit limit above PostgREST default (1000) to prevent silent truncation.
+  // Revisit with cursor-based pagination when subscriber count approaches 10000.
+  // TODO Phase 8: Replace with cursor-based pagination for datasets > 10000 rows.
 
   if (subsError) {
     console.error('Failed to fetch active subscriptions:', subsError)

@@ -159,6 +159,27 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Insufficient balance' }, { status: 403 })
     }
 
+    // Guard H-pre: Prevent concurrent in-flight payouts
+    const { count: pendingCount, error: pendingError } = await adminClient
+      .from('payouts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+
+    if (pendingError) {
+      return Response.json({ error: 'Internal error' }, { status: 500 })
+    }
+
+    if ((pendingCount ?? 0) > 0) {
+      return Response.json(
+        { error: 'You already have a payout in progress. Wait for it to complete before requesting another.' },
+        { status: 403 }
+      )
+    }
+    // Prevents concurrent submissions from bypassing cooldown.
+    // The create_payout RPC atomically deducts balance, but this guard
+    // prevents multiple in-flight payouts from being created simultaneously.
+
     // Guard H — Cooldown
     // Cooldown is 30 days first-to-second, 14 days thereafter (spec Section 6.5).
     // We check count of COMPLETED payouts, not is_first_payout flag, because
