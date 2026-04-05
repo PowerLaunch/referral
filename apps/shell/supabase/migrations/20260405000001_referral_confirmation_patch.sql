@@ -124,21 +124,14 @@ BEGIN
   SELECT referrer_id INTO v_referrer_id
   FROM referrals WHERE id = p_referral_id;
 
-  -- Award $2 (200 credits) to referrer using upsert to handle missing balance row
-  INSERT INTO user_credits (id, user_id, amount, type, updated_at)
-  VALUES (gen_random_uuid(), v_referrer_id, 200, 'CASH_BALANCE', now())
-  ON CONFLICT (user_id, type)
-  DO UPDATE SET amount = user_credits.amount + 200, updated_at = now();
-
-  -- Insert credit ledger entry
-  INSERT INTO credit_transactions (id, user_id, amount, type, reason, created_at)
-  VALUES (
-    gen_random_uuid(),
+  -- Delegate credit award to canonical award_credits RPC.
+  -- This ensures any future changes to award_credits (validation, logging,
+  -- constraint changes) automatically apply to referral confirmation awards.
+  PERFORM award_credits(
     v_referrer_id,
     200,
     'CASH_BALANCE',
-    'referral_confirmed:' || p_referral_id,
-    now()
+    'referral_confirmed:' || p_referral_id
   );
 
   -- Insert audit log
