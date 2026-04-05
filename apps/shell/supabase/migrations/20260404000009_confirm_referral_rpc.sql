@@ -22,31 +22,6 @@ BEGIN
   -- Insert audit log in same transaction
   INSERT INTO referral_audit_logs (referral_id, action, reason, triggered_by)
   VALUES (p_referral_id, 'CONFIRM', p_reason, p_triggered_by);
-
-  -- Award $2 CASH_BALANCE to referrer (atomic with status change)
-  -- $2 = 200 credits per spec (100 credits = $1 USD)
-  UPDATE user_credits
-  SET amount = amount + 200, updated_at = now()
-  WHERE user_id = (SELECT referrer_id FROM referrals WHERE id = p_referral_id)
-    AND type = 'CASH_BALANCE';
-
-  -- Insert credit ledger entry
-  INSERT INTO credit_transactions (id, user_id, amount, type, reason, created_at)
-  SELECT
-    gen_random_uuid(),
-    referrer_id,
-    200,
-    'CASH_BALANCE',
-    'referral_confirmed:' || p_referral_id,
-    now()
-  FROM referrals WHERE id = p_referral_id;
-
-  -- Credits awarded inside RPC so they are atomic with the PENDING → CONFIRMED
-  -- status change. If referral is VOIDED before this runs, the earlier guard
-  -- (WHERE status = 'PENDING') raises an exception and rolls everything back.
-  -- This prevents orphaned credits from the voidPendingCredits race condition.
-  -- The unique index on credit_transactions (user_id, reason) where reason LIKE
-  -- 'referral_confirmed:%' prevents double-awarding if RPC is called twice.
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

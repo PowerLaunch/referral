@@ -303,7 +303,6 @@ export async function GET(request: NextRequest): Promise<Response> {
           'confirm_referral',
           {
             p_referral_id: referral.id,
-            p_triggered_by: null, // system-triggered, no admin user
           }
         )
 

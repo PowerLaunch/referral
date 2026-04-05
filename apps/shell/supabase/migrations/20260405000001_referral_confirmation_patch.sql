@@ -92,3 +92,68 @@ END $$;
 
 ALTER TABLE referral_audit_logs ADD CONSTRAINT referral_audit_logs_action_check
   CHECK (action IN ('FREEZE','UNFREEZE','CONFIRM','REJECT','HOLD','RELEASE','VOIDED'));
+
+-- ==============================================================================
+-- PART 4: Recreate confirm_referral RPC with atomic credit award
+-- ==============================================================================
+
+-- Recreate confirm_referral RPC with atomic credit award (PR 3-B-patch)
+-- This replaces the version from 20260404000009 which did not award credits.
+-- Using CREATE OR REPLACE so this is safe to run on any environment.
+
+CREATE OR REPLACE FUNCTION confirm_referral(p_referral_id uuid)
+RETURNS void AS $$
+DECLARE
+  v_referrer_id uuid;
+BEGIN
+  -- Guard: only confirm if still PENDING (prevents race with voidPendingCredits)
+  UPDATE referrals
+  SET status = 'CONFIRMED', confirmed_at = now()
+  WHERE id = p_referral_id AND status = 'PENDING';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Referral % is not in PENDING status', p_referral_id;
+  END IF;
+
+  -- Get referrer_id for credit award
+  SELECT referrer_id INTO v_referrer_id
+  FROM referrals WHERE id = p_referral_id;
+
+  -- Award $2 (200 credits) to referrer using upsert to handle missing balance row
+  INSERT INTO user_credits (id, user_id, amount, type, updated_at)
+  VALUES (gen_random_uuid(), v_referrer_id, 200, 'CASH_BALANCE', now())
+  ON CONFLICT (user_id, type)
+  DO UPDATE SET amount = user_credits.amount + 200, updated_at = now();
+
+  -- Insert credit ledger entry
+  INSERT INTO credit_transactions (id, user_id, amount, type, reason, created_at)
+  VALUES (
+    gen_random_uuid(),
+    v_referrer_id,
+    200,
+    'CASH_BALANCE',
+    'referral_confirmed:' || p_referral_id,
+    now()
+  );
+
+  -- Insert audit log
+  INSERT INTO referral_audit_logs (id, referral_id, action, reason, triggered_by, created_at)
+  VALUES (
+    gen_random_uuid(),
+    p_referral_id,
+    'CONFIRM',
+    'Referral confirmed by cron',
+    null,
+    now()
+  );
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public;
+
+REVOKE ALL ON FUNCTION confirm_referral(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION confirm_referral(uuid) TO service_role;
+
+-- Comment: Credits awarded via INSERT ... ON CONFLICT (upsert) so first-ever
+-- CASH_BALANCE rows are created correctly. Plain UPDATE would silently award
+-- nothing if no row exists yet.
