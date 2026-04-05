@@ -37,8 +37,10 @@ export async function handlePayoutFailure(
     payout.user_id as string,
     payout.amount as number,
     'CASH_BALANCE',
-    'payout_failed_refund'
+    `payout_failed_refund:${payoutId}`
   )
+  // Payout ID in reason enables partial unique index idempotency guard.
+  // Prevents duplicate refunds if webhook is retried concurrently.
 
   // Step 3: Update payout record
   const { error: updateError } = await adminClient
@@ -97,6 +99,9 @@ export async function handlePayoutFailure(
       .from('profiles')
       .update({ trust_level: 'SUSPICIOUS' })
       .eq('id', payout.user_id)
+      .eq('trust_level', 'CLEAN')
+    // Only upgrade from CLEAN → SUSPICIOUS. Never downgrade BANNED → SUSPICIOUS.
+    // If user is already SUSPICIOUS or BANNED, leave trust_level unchanged.
 
     console.warn(
       `User ${payout.user_id} flagged SUSPICIOUS: 3+ payout failures`
