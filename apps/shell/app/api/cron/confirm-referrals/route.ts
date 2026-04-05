@@ -4,7 +4,6 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { awardCredits } from '@referral/api/credits'
 import { triggerE2 } from '@referral/api/email'
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -291,38 +290,14 @@ export async function GET(request: NextRequest): Promise<Response> {
 
       // All checks passed — confirm the referral
 
-      // i) Award credits to referrer
-      // $2 one-time payout per spec Section 2.1
-      // 100 credits = $1 USD per spec, so $2 = 200 credits
-      // Use referral ID in reason for idempotency (prevents duplicate awards on retry)
-      try {
-        await awardCredits(
-          referral.referrer_id,
-          200,
-          'CASH_BALANCE',
-          `referral_confirmed:${referral.id}`
-        )
-      } catch (creditError: unknown) {
-        const code = (creditError as { code?: string }).code
-        if (code === '23505') {
-          // Credit already awarded on a previous run — safe to continue to confirmation
-          console.log(
-            `Credit already awarded for referral ${referral.id}, continuing to confirm`
-          )
-        } else {
-          console.error(
-            `Referral ${referral.id}: Failed to award credits:`,
-            creditError
-          )
-          errors++
-          continue
-        }
-      }
+      // Credit award removed from cron — now handled atomically inside
+      // confirm_referral RPC to prevent race condition with voidPendingCredits.
+      // The RPC awards $2 CASH_BALANCE (200 credits) atomically with the status
+      // change. If the referral is VOIDED between fetch and RPC call, the RPC
+      // fails and rolls back both the status change and credit award.
+      // See migration 20260404000009_confirm_referral_rpc.sql for details.
 
-      // ii) Confirm the referral atomically
-      // TODO: wrap credit award + confirmation in a single
-      // transaction in Phase 8 hardening. For now, credit-first is safer
-      // than confirm-first (user gets paid even if logging fails).
+      // Confirm the referral atomically (includes credit award inside RPC)
       try {
         const { error: confirmError } = await adminClient.rpc(
           'confirm_referral',
@@ -334,7 +309,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
         if (confirmError) {
           console.error(
-            `CRITICAL: Referral ${referral.id}: Credits awarded but confirmation failed:`,
+            `Referral ${referral.id}: Confirmation failed:`,
             confirmError
           )
           errors++
@@ -342,7 +317,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         }
       } catch (confirmError) {
         console.error(
-          `CRITICAL: Referral ${referral.id}: Credits awarded but confirmation failed:`,
+          `Referral ${referral.id}: Confirmation failed:`,
           confirmError
         )
         errors++
