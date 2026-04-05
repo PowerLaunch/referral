@@ -63,7 +63,10 @@ export async function handlePayoutFailure(
       ).toISOString(),
     })
     .eq('id', payoutId)
-    .in('status', ['PENDING', 'PROCESSING'])
+    .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+  // PENDING_MANUAL_APPROVAL: first payouts start in this status.
+  // A failure webhook on a first payout must still mark it FAILED,
+  // otherwise admin approval would trigger a double-pay after the user was refunded.
   // Never overwrite COMPLETED with FAILED — concurrent success webhook wins.
   // If 0 rows updated (payout already COMPLETED), log and return safely.
 
