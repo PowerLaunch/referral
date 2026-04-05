@@ -116,6 +116,23 @@ export async function GET(request: Request) {
           }
         }
       }
+
+      // Create email preferences row for new user (required by triggerE1-E4)
+      const { error: prefError } = await createAdminClient()
+        .from('email_preferences')
+        .insert({
+          user_id: user.id,
+          referral_updates: true,
+          payout_notifications: true,
+        })
+        .select()
+        .single()
+
+      if (prefError && prefError.code !== '23505') {
+        // 23505 = duplicate — row already exists, safe to ignore.
+        // Any other error: log but do not block signup.
+        console.error('Failed to create email preferences:', prefError.message)
+      }
     } catch (err) {
       console.error('Signup flow error:', err)
       // Don't block login on referral/bonus errors
