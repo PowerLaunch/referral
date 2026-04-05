@@ -53,15 +53,13 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (profile?.trust_level === 'BANNED') {
-      return redirectWithCookies('/account-frozen')
-    }
-
-    // SUSPICIOUS users are blocked from payout routes as defense in depth.
-    // (They can still access the rest of the site — shadow review per spec Section 6.2.)
-    // The payout API also checks trust_level — this is belt-and-suspenders.
-    if (profile?.trust_level === 'SUSPICIOUS') {
-      return redirectWithCookies('/account-frozen')
+    if (
+      profile?.trust_level === 'BANNED' ||
+      profile?.trust_level === 'SUSPICIOUS'
+    ) {
+      // Return JSON error for API routes — never redirect POST requests.
+      // A 307 redirect preserves POST method and would hit /account-frozen with a POST.
+      return NextResponse.json({ error: 'Account restricted' }, { status: 403 })
     }
   }
 

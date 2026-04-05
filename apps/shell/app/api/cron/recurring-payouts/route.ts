@@ -16,8 +16,11 @@ const RECURRING_REWARD_AMOUNT = 100 // 100 credit units = $1 (100 credits = $1)
 
 export async function GET(request: NextRequest): Promise<Response> {
   // Step 1 — Auth
-  // Verify x-cron-secret header
-  const cronSecret = request.headers.get('x-cron-secret')
+  // Vercel Cron sends Authorization: Bearer {CRON_SECRET} — not x-cron-secret.
+  const authHeader = request.headers.get('authorization')
+  const cronSecret = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null
   const expectedSecret = process.env.CRON_SECRET
 
   if (!expectedSecret) {

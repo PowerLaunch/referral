@@ -11,8 +11,7 @@
     "./lockPeriod": "./src/lockPeriod.ts",
     "./maturityCheckpoint": "./src/maturityCheckpoint.ts",
     "./fraudRules": "./src/fraudRules.ts",
-    "./payoutFailure": "./src/payoutFailure.ts",
-    "./riskScore": "./src/riskScore.ts"
+    "./payoutFailure": "./src/payoutFailure.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

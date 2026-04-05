@@ -65,10 +65,17 @@ export async function handlePayoutFailure(
     )
   }
 
-  // Step 6: Flag user after 3 consecutive failures
+  // Step 6: Flag user after 3 cumulative FAILED payouts (across all payouts, not just this one)
   // Note: this counts ALL failures, not just consecutive. For a solo founder MVP,
   // total failure count is simpler and catches the same pattern. Refine in Phase 8.
-  if ((payout.retry_count as number) + 1 >= 3) {
+  // Count total FAILED payouts for this user across ALL payouts (cumulative)
+  const { count: totalFailures } = await adminClient
+    .from('payouts')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', payout.user_id)
+    .eq('status', 'FAILED')
+
+  if ((totalFailures ?? 0) >= 3) {
     await adminClient
       .from('profiles')
       .update({ trust_level: 'SUSPICIOUS' })
