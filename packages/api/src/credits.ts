@@ -136,3 +136,165 @@ export async function getBalance(
 
   return data.amount
 }
+
+/**
+ * Void all PENDING referrals for a user (fraud response)
+ * PENDING referrals represent anticipated future credits — they are NOT yet
+ * in user_credits (the balance table). They only exist as referral rows.
+ * Voiding them prevents future confirmation, not current balance.
+ *
+ * This does NOT touch CASH_BALANCE or GAME_CREDITS in user_credits.
+ * If the user has already-confirmed credits, those remain — this only
+ * prevents PENDING referrals from ever confirming.
+ *
+ * @param userId - The referrer's user ID
+ * @param reason - Reason for voiding (e.g., "Auto-voided: CRITICAL fraud flag R1")
+ * @returns Object with count of voided referrals
+ */
+export async function voidPendingCredits(
+  userId: string,
+  reason: string
+): Promise<{ voided: number }> {
+  const adminClient = getAdminClient()
+
+  // Step 1: Find all PENDING referrals for this user (both roles)
+
+  // Query 1: referrals where flagged user is the REFERRER
+  // Voiding these prevents the referrer from earning on their own fraud.
+  const { data: asReferrer, error: referrerError } = await adminClient
+    .from('referrals')
+    .select('id, referrer_id')
+    .eq('referrer_id', userId)
+    .eq('status', 'PENDING')
+
+  if (referrerError) {
+    throw new Error(
+      `Failed to query referrer-side referrals for user ${userId}: ${referrerError.message}`
+    )
+  }
+
+  // Query 2: referrals where flagged user is the REFEREE
+  // Voiding these prevents the referrer from earning credits from a fraudulent signup.
+  const { data: asReferee, error: refereeError } = await adminClient
+    .from('referrals')
+    .select('id, referrer_id')
+    .eq('referee_id', userId)
+    .eq('status', 'PENDING')
+
+  if (refereeError) {
+    throw new Error(
+      `Failed to query referee-side referrals for user ${userId}: ${refereeError.message}`
+    )
+  }
+
+  // Merge both result sets. Deduplicate by id (shouldn't overlap, but be safe).
+  const seen = new Set<string>()
+  const pendingReferrals: { id: string; referrer_id: string }[] = []
+
+  for (const r of [...(asReferrer ?? []), ...(asReferee ?? [])]) {
+    if (!seen.has(r.id)) {
+      seen.add(r.id)
+      pendingReferrals.push({ id: r.id, referrer_id: r.referrer_id })
+    }
+  }
+
+  // Covers two fraud scenarios:
+  // 1. Flagged user is referrer — they created fake referrals to earn credits.
+  // 2. Flagged user is referee — their referrer would earn from a fraudulent signup.
+  // Both referral rows are voided. The referrer in scenario 2 is not banned here —
+  // they may be innocent. The void simply prevents the payout from a bad signup.
+
+  if (!pendingReferrals || pendingReferrals.length === 0) {
+    return { voided: 0 } // No pending referrals — graceful no-op
+  }
+
+  // Step 2: Void each referral with audit trail
+  // Ideally this would be a single transaction. Since Supabase JS can't do
+  // multi-statement transactions, use a Postgres RPC for atomicity.
+  // But we don't have a void_referrals RPC yet, and adding one for a patch PR
+  // is overkill. Process row-by-row — the max pending per user is 5 (spec
+  // Section 2.9), so the loop is tiny.
+
+  let voidedCount = 0
+
+  for (const referral of pendingReferrals) {
+    try {
+      // Update status to VOIDED
+      const { data: updatedRows, error: updateError } = await adminClient
+        .from('referrals')
+        .update({ status: 'VOIDED' })
+        .eq('id', referral.id)
+        .eq('status', 'PENDING') // Guard: only void if still PENDING (prevent race)
+        .select('id')
+
+      if (updateError) {
+        console.error(
+          `Failed to void referral ${referral.id}:`,
+          updateError.message
+        )
+        continue
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        // Zero rows updated — referral was already confirmed or voided by a concurrent process.
+        // Skip audit log and credit_transactions entry — nothing was actually voided.
+        console.log(
+          `Referral ${referral.id} already transitioned — skipping void`
+        )
+        continue
+      }
+
+      // Only reach here if the update actually modified the row.
+
+      // Insert audit log
+      const { error: auditError } = await adminClient
+        .from('referral_audit_logs')
+        .insert({
+          referral_id: referral.id,
+          action: 'VOIDED' as any, // VOIDED added to CHECK in migration
+          reason,
+          triggered_by: null,
+        })
+
+      if (auditError) {
+        console.error(
+          `Audit log insert failed for voided referral ${referral.id}:`,
+          auditError.message
+        )
+        // Referral is already VOIDED — log the discrepancy but do not un-void.
+        // Admin can reconcile via the referral status directly.
+      }
+
+      // Insert credit_transactions entry for audit trail
+      // Amount is 0 — this is a record that anticipated credits were voided,
+      // not an actual balance change.
+      // Ledger entry goes to the referrer — they are the one who would have
+      // received the credit. When flagged user is the referee, referrer_id
+      // differs from userId. When flagged user is the referrer, they are the same.
+      const { error: ledgerError } = await adminClient
+        .from('credit_transactions')
+        .insert({
+          user_id: referral.referrer_id,
+          amount: 0,
+          type: 'CASH_BALANCE',
+          reason: `referral_voided: ${reason} (referral: ${referral.id})`,
+        })
+
+      if (ledgerError) {
+        console.error(
+          `Ledger insert failed for voided referral ${referral.id}:`,
+          ledgerError.message
+        )
+        // Log discrepancy — referral is VOIDED but ledger entry is missing.
+        // Admin can reconcile. Do not un-void.
+      }
+
+      voidedCount++
+    } catch (err) {
+      console.error(`Error voiding referral ${referral.id}:`, err)
+      continue // Don't abort the loop on one failure
+    }
+  }
+
+  return { voided: voidedCount }
+}

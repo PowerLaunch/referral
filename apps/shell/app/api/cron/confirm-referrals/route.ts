@@ -4,7 +4,6 @@
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { awardCredits } from '@referral/api/credits'
 import { triggerE2 } from '@referral/api/email'
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -77,6 +76,69 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   for (const referral of pendingReferrals) {
     try {
+      // --- Criterion 0: Payment collateralization (added in 3-B-patch) ---
+      // The referee's subscription payment must be settled and past the
+      // 48-hour refund window before any referral can confirm against it.
+
+      if (referral.payment_event_id) {
+        // Payment event is linked — verify it's settled
+        const { data: paymentEvent, error: paymentError } = await adminClient
+          .from('payment_events')
+          .select('status, created_at')
+          .eq('id', referral.payment_event_id)
+          .single()
+
+        if (paymentError || !paymentEvent) {
+          console.log(
+            `Referral ${referral.id} skipped: payment_event lookup failed`
+          )
+          skipped++
+          continue
+        }
+
+        if (paymentEvent.status !== 'COMPLETED') {
+          console.log(
+            `Referral ${referral.id} skipped: payment_not_settled ` +
+              `(status: ${paymentEvent.status})`
+          )
+          skipped++
+          continue
+        }
+
+        // Check 48-hour refund window
+        const paymentAge =
+          Date.now() - new Date(paymentEvent.created_at).getTime()
+        const REFUND_WINDOW_MS = 48 * 60 * 60 * 1000 // 48 hours in ms
+
+        if (paymentAge < REFUND_WINDOW_MS) {
+          const hoursRemaining = Math.ceil(
+            (REFUND_WINDOW_MS - paymentAge) / (60 * 60 * 1000)
+          )
+          console.log(
+            `Referral ${referral.id} skipped: payment_refund_window_open ` +
+              `(${hoursRemaining}h remaining)`
+          )
+          skipped++
+          continue
+        }
+      } else {
+        // No payment_event_id linked yet.
+        // This happens for referrals created before PR 5-A (payment integration).
+        // Two options:
+        //   A) Skip confirmation until payment is linked (strict)
+        //   B) Allow confirmation without payment collateral (lenient, for pre-payment PRs)
+        //
+        // During development (before PR 5-A), use option B so the confirmation cron
+        // can be tested without real payments. After PR 5-A, switch to option A.
+        //
+        // For now: allow through with a warning log.
+        // TODO PR 5-A: Change this to skip confirmation when payment_event_id is null.
+        console.log(
+          `Referral ${referral.id}: no payment_event_id linked. ` +
+            `Proceeding without payment collateral (pre-PR-5-A behavior).`
+        )
+      }
+
       // a) Check referee email verified
       // Check how email verification status is stored in your schema
       // Using Supabase auth.admin.getUserById to check email_confirmed_at
@@ -228,50 +290,25 @@ export async function GET(request: NextRequest): Promise<Response> {
 
       // All checks passed — confirm the referral
 
-      // i) Award credits to referrer
-      // $2 one-time payout per spec Section 2.1
-      // 100 credits = $1 USD per spec, so $2 = 200 credits
-      // Use referral ID in reason for idempotency (prevents duplicate awards on retry)
-      try {
-        await awardCredits(
-          referral.referrer_id,
-          200,
-          'CASH_BALANCE',
-          `referral_confirmed:${referral.id}`
-        )
-      } catch (creditError: unknown) {
-        const code = (creditError as { code?: string }).code
-        if (code === '23505') {
-          // Credit already awarded on a previous run — safe to continue to confirmation
-          console.log(
-            `Credit already awarded for referral ${referral.id}, continuing to confirm`
-          )
-        } else {
-          console.error(
-            `Referral ${referral.id}: Failed to award credits:`,
-            creditError
-          )
-          errors++
-          continue
-        }
-      }
+      // Credit award removed from cron — now handled atomically inside
+      // confirm_referral RPC to prevent race condition with voidPendingCredits.
+      // The RPC awards $2 CASH_BALANCE (200 credits) atomically with the status
+      // change. If the referral is VOIDED between fetch and RPC call, the RPC
+      // fails and rolls back both the status change and credit award.
+      // See migration 20260404000009_confirm_referral_rpc.sql for details.
 
-      // ii) Confirm the referral atomically
-      // TODO: wrap credit award + confirmation in a single
-      // transaction in Phase 8 hardening. For now, credit-first is safer
-      // than confirm-first (user gets paid even if logging fails).
+      // Confirm the referral atomically (includes credit award inside RPC)
       try {
         const { error: confirmError } = await adminClient.rpc(
           'confirm_referral',
           {
             p_referral_id: referral.id,
-            p_triggered_by: null, // system-triggered, no admin user
           }
         )
 
         if (confirmError) {
           console.error(
-            `CRITICAL: Referral ${referral.id}: Credits awarded but confirmation failed:`,
+            `Referral ${referral.id}: Confirmation failed:`,
             confirmError
           )
           errors++
@@ -279,7 +316,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         }
       } catch (confirmError) {
         console.error(
-          `CRITICAL: Referral ${referral.id}: Credits awarded but confirmation failed:`,
+          `Referral ${referral.id}: Confirmation failed:`,
           confirmError
         )
         errors++
