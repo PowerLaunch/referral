@@ -135,6 +135,7 @@ Complete these before starting PR 5-A:
 |----|---------------------|--------|
 | OQ-06 | Domain name: get a real domain before marketing, Vercel subdomain fine for testing | OPEN |
 | OQ-07 | Referral link base URL: update NEXT_PUBLIC_APP_URL in .env.local before Phase 5 — links must use final domain before any real users see them | OPEN |
+| REMINDER | Set SUBSCRIPTION_WEBHOOK_SECRET in Vercel env vars before PR 5-A. Also add real provider HMAC validation to replace stub in /api/webhooks/subscription. | Blocking Phase 5 |
 
 ---
 

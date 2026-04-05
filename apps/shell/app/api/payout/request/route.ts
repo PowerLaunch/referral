@@ -1,0 +1,249 @@
+// Payout request endpoint. Validates all guards, then atomically deducts
+// CASH_BALANCE and creates a payout record via Postgres RPC.
+// GAME_CREDITS are non-cashable — only CASH_BALANCE can be cashed out.
+
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getBalance } from '@referral/api/credits'
+
+const ALLOWED_METHODS = [
+  'gcash',
+  'gopay',
+  'ovo',
+  'grabpay',
+  'bank_transfer',
+  'paypal',
+] as const
+
+type PayoutMethod = (typeof ALLOWED_METHODS)[number]
+
+// Minimums from spec Section 2.5.2.
+// Credits are stored as integers where 100 units = $1 (100 credits/dollar).
+// These values are in credit units (cents-equivalent): 500 = $5, 2500 = $25, etc.
+const MINIMUM_PAYOUT: Record<PayoutMethod, number> = {
+  gcash: 500,
+  gopay: 500,
+  ovo: 500,
+  grabpay: 500,
+  bank_transfer: 2500, // $25
+  paypal: 1500,        // $15
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+export async function POST(request: Request): Promise<Response> {
+  try {
+    // Step 1 — Authenticate
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Step 2 — Parse and validate body
+    const body = (await request.json()) as { amount: unknown; method: unknown }
+
+    const { amount, method } = body
+
+    if (
+      typeof amount !== 'number' ||
+      !Number.isInteger(amount) ||
+      amount <= 0
+    ) {
+      return Response.json(
+        { error: 'amount must be a positive integer' },
+        { status: 400 }
+      )
+    }
+
+    if (
+      typeof method !== 'string' ||
+      !(ALLOWED_METHODS as readonly string[]).includes(method)
+    ) {
+      return Response.json(
+        { error: `method must be one of: ${ALLOWED_METHODS.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    const payoutMethod = method as PayoutMethod
+    const adminClient = createAdminClient()
+
+    // Step 3 — Guards
+
+    // Guard A — Trust level (also fetches created_at for Guard E)
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('trust_level, created_at')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return Response.json({ error: 'Account not found' }, { status: 403 })
+    }
+
+    if (profile.trust_level === 'BANNED') {
+      return Response.json({ error: 'Account banned' }, { status: 403 })
+    }
+
+    // Guard B — Account status (defense in depth)
+    // Defense in depth: middleware also blocks FROZEN/REVIEW_HOLD on payout routes.
+    // REVIEW_HOLD is not a current trust_level value (schema has: CLEAN, SUSPICIOUS, BANNED).
+    // SUSPICIOUS users proceed — they can access the site, just flagged for monitoring.
+    // BANNED is already checked in Guard A above.
+
+    // Guard C — Active subscription
+    const { data: subscription, error: subError } = await adminClient
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle()
+
+    if (subError) {
+      console.error('Guard C subscription check error:', subError)
+      return Response.json({ error: 'Internal error' }, { status: 500 })
+    }
+
+    if (!subscription) {
+      return Response.json(
+        { error: 'Active subscription required' },
+        { status: 403 }
+      )
+    }
+
+    // Guard D — KYC verification (STUB)
+    // TODO: Wire real KYC check in PR 5-C. For now, skip this guard.
+    // Uncomment when KYC is live:
+    // const { data: kycProfile } = await adminClient
+    //   .from('profiles')
+    //   .select('verified_kyc_hash')
+    //   .eq('id', user.id)
+    //   .single()
+    // if (!kycProfile?.verified_kyc_hash) {
+    //   return Response.json({ error: 'KYC verification required' }, { status: 403 })
+    // }
+    const kycPassed = true // STUB — remove in PR 5-C
+    void kycPassed
+
+    // Guard E — Account age (reuse created_at from Guard A result)
+    const accountAgeMs = Date.now() - new Date(profile.created_at).getTime()
+    if (accountAgeMs < 7 * MS_PER_DAY) {
+      return Response.json(
+        { error: 'Account must be at least 7 days old' },
+        { status: 403 }
+      )
+    }
+
+    // Guard F — Minimum balance by method
+    if (amount < MINIMUM_PAYOUT[payoutMethod]) {
+      return Response.json(
+        {
+          error: `Minimum payout for ${payoutMethod} is $${MINIMUM_PAYOUT[payoutMethod] / 100}`,
+        },
+        { status: 403 }
+      )
+    }
+
+    // Guard G — Balance check
+    // Note: the RPC also checks balance, but pre-checking here gives a clean error.
+    const balance = await getBalance(user.id, 'CASH_BALANCE')
+    if (balance < amount) {
+      return Response.json({ error: 'Insufficient balance' }, { status: 403 })
+    }
+
+    // Guard H — Cooldown
+    // Cooldown is 30 days first-to-second, 14 days thereafter (spec Section 6.5).
+    // We check count of COMPLETED payouts, not is_first_payout flag, because
+    // a first payout that FAILED then later succeeded should still trigger 30-day
+    // cooldown before the third payout, not 14-day.
+    const { data: lastCompleted, error: lastCompletedError } = await adminClient
+      .from('payouts')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('status', 'COMPLETED')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (lastCompletedError) {
+      console.error('Guard H last completed query error:', lastCompletedError)
+      return Response.json({ error: 'Internal error' }, { status: 500 })
+    }
+
+    let completedCount = 0
+
+    if (lastCompleted) {
+      const { count, error: countError } = await adminClient
+        .from('payouts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'COMPLETED')
+
+      if (countError) {
+        console.error('Guard H count query error:', countError)
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
+
+      completedCount = count ?? 0
+
+      // count === 1: they've completed exactly one payout → first-to-second = 30 days
+      // count > 1: subsequent payouts → 14 days
+      const cooldownDays = completedCount === 1 ? 30 : 14
+      const cooldownMs = cooldownDays * MS_PER_DAY
+      const lastCompletedTime = new Date(lastCompleted.created_at).getTime()
+
+      if (Date.now() < lastCompletedTime + cooldownMs) {
+        const remaining = Math.ceil(
+          (lastCompletedTime + cooldownMs - Date.now()) / MS_PER_DAY
+        )
+        return Response.json(
+          {
+            error: `Payout cooldown active. Try again in ${remaining} days.`,
+          },
+          { status: 403 }
+        )
+      }
+    }
+
+    // Guard I — Credit type enforcement
+    // GAME_CREDITS are non-cashable by design (spec Section 2.7).
+    // This endpoint exclusively operates on CASH_BALANCE. No code path exists
+    // to cash out GAME_CREDITS.
+
+    // Step 4 — Determine first-payout flag (reuse completedCount from Guard H)
+    const isFirst = completedCount === 0
+
+    // Step 5 — Create payout atomically
+    // The RPC atomically deducts CASH_BALANCE and inserts the payout row.
+    // If the deduction fails (insufficient balance race), the whole thing rolls back.
+    const { data: payoutId, error: rpcError } = await adminClient.rpc(
+      'create_payout',
+      {
+        p_user_id: user.id,
+        p_amount: amount,
+        p_method: payoutMethod,
+        p_is_first: isFirst,
+      }
+    )
+
+    if (rpcError) {
+      console.error('create_payout RPC error:', rpcError)
+      return Response.json({ error: 'Payout creation failed' }, { status: 500 })
+    }
+
+    // Step 6 — Return success
+    return Response.json({
+      ok: true,
+      payout_id: payoutId as string,
+      status: isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING',
+    })
+  } catch (error) {
+    console.error('Payout request error:', error)
+    return Response.json({ ok: false, error: 'Internal error' }, { status: 500 })
+  }
+}
