@@ -24,9 +24,11 @@ export async function handlePayoutFailure(
     throw new Error(`Payout ${payoutId} not found`)
   }
 
-  if (payout.status === 'FAILED') {
-    // Already processed — duplicate webhook. Do nothing.
-    console.log(`Payout ${payoutId} already FAILED — skipping duplicate failure handler`)
+  if (payout.status === 'FAILED' || payout.status === 'COMPLETED') {
+    // FAILED: duplicate webhook — already processed.
+    // COMPLETED: erroneous/replayed webhook — must never refund a successful payout.
+    // Either way: do nothing. User must not receive both the payout and a refund.
+    console.log(`Payout ${payoutId} has status ${payout.status} — skipping failure handler`)
     return
   }
 
