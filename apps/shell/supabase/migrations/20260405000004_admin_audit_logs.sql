@@ -14,7 +14,7 @@ CREATE TABLE admin_audit_logs (
 );
 
 -- Append-only: no updates or deletes
-REVOKE UPDATE, DELETE ON admin_audit_logs FROM authenticated, anon;
+REVOKE UPDATE, DELETE ON admin_audit_logs FROM PUBLIC, anon, authenticated, service_role;
 
 ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
 -- No user policies. Admin/service role only.

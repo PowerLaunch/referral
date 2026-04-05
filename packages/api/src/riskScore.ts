@@ -1,34 +1,8 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { getAdminClient } from './credits'
 
 // Risk score is always computed fresh from fraud_flags — never cached or stored
 // as a column. This ensures score reflects current state after admin resolutions.
 // All flags count toward score regardless of is_resolved status.
-
-// Service role client — this module is server-side only. Never import from client components.
-// Lazy initialization to avoid build-time errors when env vars aren't available.
-let adminClient: SupabaseClient | null = null
-
-function getAdminClient(): SupabaseClient {
-  if (!adminClient) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error(
-        'Missing Supabase environment variables for risk scoring (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)'
-      )
-    }
-
-    adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-  }
-
-  return adminClient
-}
 
 /**
  * Get risk score for a user by summing severity scores of all fraud flags.

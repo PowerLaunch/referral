@@ -5,3 +5,5 @@
 export * from './credits'
 export * from './email'
 export * from './lockPeriod'
+export * from './payoutFailure'
+export * from './riskScore'

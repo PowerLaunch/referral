@@ -43,8 +43,11 @@ export default function FingerprintCapture() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fingerprintHash }),
     })
-      .then(() => {
-        sessionStorage.setItem('fp-sent', 'true')
+      .then((res) => {
+        if (res.ok) {
+          sessionStorage.setItem('fp-sent', 'true')
+        }
+        // Only mark sent on 200 OK. On 400/401, allow retry next navigation.
       })
       .catch(() => {
         // Silent failure. Never crash the page for fingerprint errors.
