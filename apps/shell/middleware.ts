@@ -69,6 +69,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/).*)',
+    // Cron routes are authenticated via Authorization: Bearer {CRON_SECRET} header,
+    // not Supabase session cookies. They must be excluded from the session middleware.
+    // Each cron handler validates its own secret independently.
+    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/|api/cron/).*)',
   ],
 }
