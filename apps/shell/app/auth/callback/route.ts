@@ -103,17 +103,17 @@ export async function GET(request: Request) {
         // The RPC function handles both ledger entry and balance update atomically.
         try {
           await awardCredits(user.id, signupBonusAmount, 'GAME_CREDITS', 'signup_bonus')
-        } catch (error) {
-          // Check if it's a duplicate signup bonus (23505 unique constraint violation)
-          if ((error as { code?: string }).code === '23505') {
-            console.log(
-              'Signup bonus already awarded (concurrent request blocked by unique constraint)'
-            )
+        } catch (error: unknown) {
+          const pgError = error as { code?: string }
+          if (pgError?.code === '23505') {
+            // Duplicate signup bonus — idempotent, safe to ignore and continue.
+            console.log('Signup bonus already awarded — skipping duplicate')
           } else {
-            // Other error — log and continue (don't block login)
+            // Genuine failure — log but do not block the user from reaching dashboard.
+            // Re-throw is intentional: the outer catch handles unexpected errors.
             console.error('Failed to award signup bonus:', error)
+            throw error
           }
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
         }
       }
     } catch (err) {

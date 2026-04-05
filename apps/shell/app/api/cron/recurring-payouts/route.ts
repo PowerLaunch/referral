@@ -64,9 +64,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
-  // Filter to referrals where both referee and referrer have active subscriptions
-  const activeRefereeIds = new Set<string>()
-  const activeReferrerIds = new Set<string>()
+  // Single set covers both roles — a user must have active subscription
+  // whether they are referrer or referee.
+  const activeUserIds = new Set<string>()
 
   const { data: activeSubs, error: subsError } = await adminClient
     .from('subscriptions')
@@ -82,14 +82,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   for (const sub of activeSubs ?? []) {
-    activeRefereeIds.add(sub.user_id as string)
-    activeReferrerIds.add(sub.user_id as string)
+    activeUserIds.add(sub.user_id as string)
   }
 
   const fullyEligible = eligibleReferrals.filter(
     (r) =>
-      activeRefereeIds.has(r.referee_id as string) &&
-      activeReferrerIds.has(r.referrer_id as string)
+      activeUserIds.has(r.referee_id as string) &&
+      activeUserIds.has(r.referrer_id as string)
   )
 
   // Step 4 — Apply recurring cap per referrer (max 15 active recurring referrals)
