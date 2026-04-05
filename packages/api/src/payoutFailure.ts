@@ -16,12 +16,18 @@ export async function handlePayoutFailure(
   // Step 1: Read payout details
   const { data: payout, error: fetchError } = await adminClient
     .from('payouts')
-    .select('user_id, amount, retry_count')
+    .select('user_id, amount, retry_count, status')
     .eq('id', payoutId)
     .single()
 
   if (fetchError || !payout) {
     throw new Error(`Payout ${payoutId} not found`)
+  }
+
+  if (payout.status === 'FAILED') {
+    // Already processed — duplicate webhook. Do nothing.
+    console.log(`Payout ${payoutId} already FAILED — skipping duplicate failure handler`)
+    return
   }
 
   // Step 2: Credit funds back to user
@@ -33,7 +39,7 @@ export async function handlePayoutFailure(
   )
 
   // Step 3: Update payout record
-  await adminClient
+  const { error: updateError } = await adminClient
     .from('payouts')
     .update({
       status: 'FAILED',
@@ -45,11 +51,20 @@ export async function handlePayoutFailure(
     })
     .eq('id', payoutId)
 
+  if (updateError) {
+    // Critical: user has been refunded but payout still shows old status.
+    // Log loudly — admin must manually reconcile.
+    console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED after refund:`, updateError.message)
+    throw new Error(`Payout status update failed for ${payoutId}: ${updateError.message}`)
+  }
+
   // Step 4: Send E4 notification (failure does not block)
   try {
+    // Convert credit units to dollar string (100 units = $1.00)
+    const amountDollars = `$${((payout.amount as number) / 100).toFixed(2)}`
     await triggerE4(
       payout.user_id as string,
-      String(payout.amount),
+      amountDollars,
       errorCode
     )
   } catch (emailErr) {

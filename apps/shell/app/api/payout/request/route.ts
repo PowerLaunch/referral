@@ -89,11 +89,14 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Account banned' }, { status: 403 })
     }
 
-    // Guard B — Account status (defense in depth)
-    // Defense in depth: middleware also blocks FROZEN/REVIEW_HOLD on payout routes.
-    // REVIEW_HOLD is not a current trust_level value (schema has: CLEAN, SUSPICIOUS, BANNED).
-    // SUSPICIOUS users proceed — they can access the site, just flagged for monitoring.
-    // BANNED is already checked in Guard A above.
+    if (profile.trust_level === 'SUSPICIOUS') {
+      return Response.json(
+        { error: 'Account under review — payouts temporarily restricted' },
+        { status: 403 }
+      )
+    }
+    // SUSPICIOUS users are blocked from payouts at both middleware
+    // and route level (belt-and-suspenders). Shadow review — user sees generic message.
 
     // Guard C — Active subscription
     const { data: subscription, error: subError } = await adminClient
