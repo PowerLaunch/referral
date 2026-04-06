@@ -44,6 +44,9 @@ export async function middleware(request: NextRequest) {
   // Uses cookie-based supabase client only (Edge Runtime compatible).
   // trust_level is read from the user's JWT metadata if available,
   // otherwise skip this check — route handlers enforce it with admin client.
+  // NOTE: user_metadata is client-writable — this check is best-effort only.
+  // Route-level guards query profiles table directly and are the authoritative check.
+  // TODO PR 4-D: Write trust_level to app_metadata (server-only) on every change.
   const trustLevel = user.user_metadata?.trust_level as string | undefined
   if (trustLevel === 'BANNED') {
     // Use the existing redirectWithCookies helper to preserve refreshed
@@ -64,6 +67,7 @@ export const config = {
     // Cron routes are authenticated via Authorization: Bearer {CRON_SECRET} header,
     // not Supabase session cookies. They must be excluded from the session middleware.
     // Each cron handler validates its own secret independently.
+    // Webhook routes (including /api/webhooks/payout-failure) use provider-specific HMAC.
     '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/|api/cron/).*)',
   ],
 }
