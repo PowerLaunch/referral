@@ -30,6 +30,10 @@ const MINIMUM_PAYOUT: Record<PayoutMethod, number> = {
   paypal: 1500,        // $15
 }
 
+const MAX_PAYOUT_AMOUNT = 100000 // $1000 in cents — single transaction safety cap
+// Max per-transaction cap. Large balances require multiple withdrawals.
+// Amounts above this threshold warrant admin review regardless of balance.
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 export async function POST(request: Request): Promise<Response> {
@@ -56,6 +60,13 @@ export async function POST(request: Request): Promise<Response> {
     ) {
       return Response.json(
         { error: 'amount must be a positive integer' },
+        { status: 400 }
+      )
+    }
+
+    if (amount > MAX_PAYOUT_AMOUNT) {
+      return Response.json(
+        { error: 'Amount exceeds maximum single payout limit of $1000' },
         { status: 400 }
       )
     }

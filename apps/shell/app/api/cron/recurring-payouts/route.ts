@@ -33,10 +33,14 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Step 2 — Calculate current reward month
+  // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()
-  // Reward month is based on UTC date when cron runs.
-  const rewardMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+  // Reward is for the month that just ended, not the current month.
+  // Cron runs on 1st at 03:00 UTC — subtract one month to get prior month.
+  const priorMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const rewardMonth = `${priorMonth.getUTCFullYear()}-${String(priorMonth.getUTCMonth() + 1).padStart(2, '0')}`
+  // e.g. cron runs 2026-04-01 → rewardMonth = '2026-03'
+  // Date.UTC handles January correctly: month -1 wraps to December of prior year.
 
   const adminClient = getAdminClient()
 
