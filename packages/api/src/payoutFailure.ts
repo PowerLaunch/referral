@@ -109,7 +109,10 @@ export async function handlePayoutFailure(
     newRetryCount = retryData as number | null
   }
 
-  const retryCount = newRetryCount ?? (payout.retry_count as number) + 1
+  // On recovery path (alreadyFailed=true), the DB already has the incremented
+  // retry_count from the original attempt. Use payout.retry_count as-is.
+  // On new failure path, newRetryCount is the post-increment value from the RPC.
+  const retryCount = newRetryCount ?? (payout.retry_count as number)
 
   try {
     await awardCredits(
