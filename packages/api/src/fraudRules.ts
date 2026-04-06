@@ -321,11 +321,12 @@ export async function runR4CashoutSpike(): Promise<number> {
         .limit(1)
 
       // Log circuit breaker trigger
+      // targetId is null for global circuit breaker events — no specific user target.
       await logAdminAction({
         adminUserId: null,
         action: 'CIRCUIT_BREAKER_TRIGGERED',
         targetType: 'game_config',
-        targetId: 'singleton',
+        targetId: null,
         beforeValue: 'cashouts_paused: false',
         afterValue: 'cashouts_paused: true',
         reason: `R4: Cashout spike detected (${currentHourTotal} > ${Math.round(threshold)})`,

@@ -89,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('trust_level, created_at')
+      .select('trust_level, created_at, payout_hold')
       .eq('id', user.id)
       .single()
 
@@ -109,6 +109,15 @@ export async function POST(request: Request): Promise<Response> {
     }
     // SUSPICIOUS users are blocked from payouts at both middleware
     // and route level (belt-and-suspenders). Shadow review — user sees generic message.
+
+    // Guard B — Payout hold
+    // payout_hold is set by R1 spike detection. Cleared by admin in Phase 7.
+    if (profile.payout_hold) {
+      return Response.json(
+        { error: 'Payouts are temporarily on hold for this account' },
+        { status: 403 }
+      )
+    }
 
     // Guard C — Active subscription
     const { data: subscription, error: subError } = await adminClient

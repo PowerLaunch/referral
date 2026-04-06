@@ -62,7 +62,7 @@ export async function logAdminAction(params: {
   adminUserId: string | null
   action: string
   targetType: string
-  targetId: string
+  targetId: string | null
   beforeValue?: string | null
   afterValue?: string | null
   reason?: string | null
