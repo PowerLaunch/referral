@@ -278,11 +278,13 @@ export async function runR4CashoutSpike(): Promise<number> {
   // Using created_at as proxy for payout timing. completed_at is wired in PR 5-B.
   // R4 is a best-effort early warning — created_at is accurate enough for spike detection.
   // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
+  // Upper bound excludes current hour to prevent the spike from inflating the baseline average.
   const { data: weeklyPayouts, error: weeklyError } = await adminClient
     .from('payouts')
     .select('amount')
     .eq('status', 'COMPLETED')
     .gte('created_at', sevenDaysAgo.toISOString())
+    .lt('created_at', currentHourStart.toISOString())
     .limit(10000)
 
   if (weeklyError) {
@@ -564,7 +566,7 @@ export async function checkIdentityCluster(
       },
     ]) {
       // Guard: never downgrade a BANNED account. R7 flags for review but admin bans are permanent.
-      await adminClient
+      const { data: updatedRows } = await adminClient
         .from('profiles')
         .update({
           status: 'REVIEW_HOLD',
@@ -573,6 +575,7 @@ export async function checkIdentityCluster(
         .eq('id', targetUser.id)
         .not('trust_level', 'eq', 'BANNED')
         .not('status', 'eq', 'BANNED')
+        .select('id')
 
       // c) Insert CRITICAL fraud_flag for this account
       await insertFraudFlag({
@@ -585,32 +588,35 @@ export async function checkIdentityCluster(
       })
 
       // d) Log to admin_audit_logs
-      if (targetUser.oldStatus !== 'REVIEW_HOLD') {
-        await logAdminAction({
-          adminUserId: null,
-          action: 'UPDATE_STATUS',
-          targetType: 'profile',
-          targetId: targetUser.id,
-          beforeValue: targetUser.oldStatus,
-          afterValue: 'REVIEW_HOLD',
-          reason: `R7: Identity cluster detected (KYC hash collision with user ${
-            targetUser.id === userId ? conflictingUserId : userId
-          })`,
-        })
-      }
+      // Only audit-log if the update succeeded — BANNED accounts are skipped by the guard above.
+      if (updatedRows && updatedRows.length > 0) {
+        if (targetUser.oldStatus !== 'REVIEW_HOLD') {
+          await logAdminAction({
+            adminUserId: null,
+            action: 'UPDATE_STATUS',
+            targetType: 'profile',
+            targetId: targetUser.id,
+            beforeValue: targetUser.oldStatus,
+            afterValue: 'REVIEW_HOLD',
+            reason: `R7: Identity cluster detected (KYC hash collision with user ${
+              targetUser.id === userId ? conflictingUserId : userId
+            })`,
+          })
+        }
 
-      if (targetUser.oldTrust !== 'SUSPICIOUS') {
-        await logAdminAction({
-          adminUserId: null,
-          action: 'UPDATE_TRUST_LEVEL',
-          targetType: 'profile',
-          targetId: targetUser.id,
-          beforeValue: targetUser.oldTrust,
-          afterValue: 'SUSPICIOUS',
-          reason: `R7: Identity cluster detected (KYC hash collision with user ${
-            targetUser.id === userId ? conflictingUserId : userId
-          })`,
-        })
+        if (targetUser.oldTrust !== 'SUSPICIOUS') {
+          await logAdminAction({
+            adminUserId: null,
+            action: 'UPDATE_TRUST_LEVEL',
+            targetType: 'profile',
+            targetId: targetUser.id,
+            beforeValue: targetUser.oldTrust,
+            afterValue: 'SUSPICIOUS',
+            reason: `R7: Identity cluster detected (KYC hash collision with user ${
+              targetUser.id === userId ? conflictingUserId : userId
+            })`,
+          })
+        }
       }
     }
 
