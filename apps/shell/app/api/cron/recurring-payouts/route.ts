@@ -50,6 +50,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Step 3 — Find eligible referrals
   // Referral must be CONFIRMED, referee must have active subscription,
   // and referrer must have active subscription (spec: referrer must be subscribed).
+  // Only referrals confirmed before the start of the current month are eligible.
+  // A referral confirmed on April 1 must not receive March recurring reward.
+  const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const currentMonthStartISO = currentMonthStart.toISOString()
+
   const { data: eligibleReferrals, error: referralsError } = await adminClient
     .from('referrals')
     .select(`
@@ -59,6 +64,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       created_at
     `)
     .eq('status', 'CONFIRMED')
+    .lt('confirmed_at', currentMonthStartISO)
     .limit(10000)
   // Same rationale — explicit limit prevents silent truncation at scale.
   // TODO Phase 8: Replace with cursor-based pagination for datasets > 10000 rows.
