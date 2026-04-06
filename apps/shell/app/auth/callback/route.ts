@@ -7,6 +7,7 @@ import {
   isVpnDetected,
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
+import { createEmailPreferences } from '@referral/api/email'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -117,21 +118,9 @@ export async function GET(request: Request) {
       }
 
       // Create email preferences row for new user (required by triggerE1-E4)
-      const { error: prefError } = await createAdminClient()
-        .from('email_preferences')
-        .insert({
-          user_id: user.id,
-          referral_updates: true,
-          payout_notifications: true,
-        })
-        .select()
-        .single()
-
-      if (prefError && prefError.code !== '23505') {
-        // 23505 = duplicate — row already exists, safe to ignore.
-        // Any other error: log but do not block signup.
-        console.error('Failed to create email preferences:', prefError.message)
-      }
+      await createEmailPreferences(user.id)
+      // Uses the canonical utility from packages/api/src/email.ts.
+      // Errors are handled inside the utility — no try/catch needed here.
     } catch (err) {
       console.error('Signup flow error:', err)
       // Don't block login on referral/bonus errors

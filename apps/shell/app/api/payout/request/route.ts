@@ -191,7 +191,10 @@ export async function POST(request: Request): Promise<Response> {
       .select('created_at, completed_at')
       .eq('user_id', user.id)
       .eq('status', 'COMPLETED')
-      .order('created_at', { ascending: false })
+      .order('completed_at', { ascending: false, nullsFirst: false })
+      // Order by completed_at so the most recently completed payout is selected.
+      // nullsFirst: false puts nulls last (legacy rows without completed_at).
+      // Consistent with completionTime fallback logic below.
       .limit(1)
       .maybeSingle()
 
