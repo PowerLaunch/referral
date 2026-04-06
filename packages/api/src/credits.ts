@@ -70,8 +70,12 @@ export async function awardCredits(
 }
 
 /**
- * Deduct credits from a user (creates negative ledger entry and updates balance)
- * Throws on insufficient balance. Callers should catch and handle gracefully.
+ * NOTE: Direct credit deduction is handled by the create_payout Postgres RPC
+ * (20260405000008_create_payout_rpc.sql) which inlines the deduction atomically
+ * with payout row creation. This function is retained for future use cases where
+ * a standalone deduction is needed outside of payout creation.
+ * Do NOT call this from payout flows — use the create_payout RPC instead.
+ *
  * @param userId - User UUID
  * @param amount - Positive integer amount to deduct
  * @param type - Credit type (CASH_BALANCE or GAME_CREDITS)

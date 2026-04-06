@@ -7,6 +7,7 @@ import {
   freezeReferralsForUser,
   unfreezeReferralsForUser,
 } from '@referral/api/maturityCheckpoint'
+import { safeCompare } from '@/lib/crypto'
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    if (secret !== expectedSecret) {
+    if (!secret || !safeCompare(secret, expectedSecret)) {
       console.error('Unauthorized webhook attempt')
       return Response.json(
         { ok: false, error: 'Unauthorized' },

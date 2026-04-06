@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Public paths that don't require auth
-  const publicPaths = ['/login', '/signup', '/verify-email', '/auth/callback', '/ref']
+  const publicPaths = ['/login', '/signup', '/verify-email', '/auth/callback', '/ref', '/account-frozen']
   const isPublicPath =
     request.nextUrl.pathname === '/' ||
     publicPaths.some((path) => request.nextUrl.pathname.startsWith(path))
@@ -36,12 +36,38 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(verifyUrl)
   }
 
+  // Trust level enforcement for payout routes is handled in the route handler
+  // (Guard A and Guard B in /api/payout/request/route.ts). Middleware runs on
+  // Edge Runtime where the service-role admin client is not compatible.
+
+  // Redirect BANNED users to /account-frozen for all non-public routes.
+  // Uses cookie-based supabase client only (Edge Runtime compatible).
+  // trust_level is read from the user's JWT metadata if available,
+  // otherwise skip this check — route handlers enforce it with admin client.
+  // NOTE: user_metadata is client-writable — this check is best-effort only.
+  // Route-level guards query profiles table directly and are the authoritative check.
+  // TODO PR 4-D: Write trust_level to app_metadata (server-only) on every change.
+  const trustLevel = user.user_metadata?.trust_level as string | undefined
+  if (trustLevel === 'BANNED') {
+    // Use the existing redirectWithCookies helper to preserve refreshed
+    // Supabase session cookies set by updateSession.
+    return redirectWithCookies('/account-frozen')
+  }
+  // Note: trust_level in JWT metadata is only reliable if updated on every
+  // trust_level change (PR 4-D wires this). For now this is best-effort.
+  // Route-level guards are the authoritative enforcement layer.
+  // Full middleware enforcement added in PR 4-D (fraud middleware).
+
   // Session exists and email confirmed → allow through
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/).*)',
+    // Cron routes are authenticated via Authorization: Bearer {CRON_SECRET} header,
+    // not Supabase session cookies. They must be excluded from the session middleware.
+    // Each cron handler validates its own secret independently.
+    // Webhook routes (including /api/webhooks/payout-failure) use provider-specific HMAC.
+    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/|api/cron/).*)',
   ],
 }
