@@ -35,8 +35,11 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()
-  // Reward is for the month that just ended, not the current month.
-  // Cron runs on 1st at 03:00 UTC — subtract one month to get prior month.
+  // rewardMonth is the month that just ended (prior to cron run).
+  // Cron schedule: 0 3 1 * * (03:00 UTC on 1st of month).
+  // Clock skew risk is negligible — Vercel Cron variance is seconds, not hours.
+  // If this ever runs on wrong day, the recurring_reward_logs UNIQUE constraint
+  // prevents double-awarding and the next run self-corrects.
   const priorMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
   const rewardMonth = `${priorMonth.getUTCFullYear()}-${String(priorMonth.getUTCMonth() + 1).padStart(2, '0')}`
   // e.g. cron runs 2026-04-01 → rewardMonth = '2026-03'
