@@ -25,47 +25,76 @@ export async function handlePayoutFailure(
     throw new Error(`Payout ${payoutId} not found`)
   }
 
-  if (payout.status === 'FAILED' || payout.status === 'COMPLETED') {
-    // FAILED: duplicate webhook — already processed.
-    // COMPLETED: erroneous/replayed webhook — must never refund a successful payout.
-    // Either way: do nothing. User must not receive both the payout and a refund.
-    console.log(`Payout ${payoutId} has status ${payout.status} — skipping failure handler`)
+  if (payout.status === 'COMPLETED') {
+    // Payout succeeded — never refund.
+    console.log(`Payout ${payoutId} is COMPLETED — skipping failure handler`)
     return
   }
 
-  // Step 2 (formerly Step 3) — Claim payout as FAILED first (atomic guard)
-  // IMPORTANT: Status must be claimed as FAILED before refunding.
-  // If we refund first and a concurrent success webhook wins the status race,
-  // the user receives both the completed payout and the refund (double-pay).
-  // Claiming FAILED first means: if 0 rows updated, we return before refunding.
-  const { data: updatedRows, error: updateError } = await adminClient
-    .from('payouts')
-    .update({
-      status: 'FAILED',
-      provider_error_code: errorCode,
-      retry_available_at: new Date(
-        Date.now() + 24 * 60 * 60 * 1000
-      ).toISOString(),
-    })
-    .eq('id', payoutId)
-    .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
-    .select('id')
-  // PENDING_MANUAL_APPROVAL: first payouts start in this status.
-  // A failure webhook on a first payout must still mark it FAILED,
-  // otherwise admin approval would trigger a double-pay after the user was refunded.
-  // Never overwrite COMPLETED with FAILED — concurrent success webhook wins.
+  if (payout.status === 'FAILED') {
+    // Already marked FAILED. Check if refund was issued.
+    // If awardCredits succeeded on a previous attempt, the idempotency index
+    // on credit_transactions will have a row with reason = 'payout_failed_refund:<id>'.
+    const { data: refundRow } = await adminClient
+      .from('credit_transactions')
+      .select('id')
+      .eq('user_id', payout.user_id)
+      .eq('reason', `payout_failed_refund:${payoutId}`)
+      .maybeSingle()
 
-  if (updateError) {
-    console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED:`, updateError.message)
-    throw new Error(`Payout status update failed: ${updateError.message}`)
+    if (refundRow) {
+      // Refund already issued — fully processed. Skip.
+      console.log(`Payout ${payoutId} already FAILED and refunded — skipping`)
+      return
+    }
+
+    // Status is FAILED but no refund row exists — previous attempt failed after
+    // status update but before awardCredits. Fall through to issue the refund.
+    console.log(`Payout ${payoutId} is FAILED but missing refund — issuing refund now`)
+    // Skip the status update step below (already FAILED) and go straight to refund.
+    // Set a flag to skip Step 2 (status update).
   }
 
-  if (!updatedRows || updatedRows.length === 0) {
-    // Payout already in terminal state (e.g. COMPLETED by concurrent success webhook).
-    // Do NOT refund — the payout succeeded. Return early.
-    console.log(`Payout ${payoutId} already in terminal state — skipping refund and E4 email`)
-    return
+  const alreadyFailed = payout.status === 'FAILED'
+
+  if (!alreadyFailed) {
+    // Step 2 (formerly Step 3) — Claim payout as FAILED first (atomic guard)
+    // IMPORTANT: Status must be claimed as FAILED before refunding.
+    // If we refund first and a concurrent success webhook wins the status race,
+    // the user receives both the completed payout and the refund (double-pay).
+    // Claiming FAILED first means: if 0 rows updated, we return before refunding.
+    const { data: updatedRows, error: updateError } = await adminClient
+      .from('payouts')
+      .update({
+        status: 'FAILED',
+        provider_error_code: errorCode,
+        retry_available_at: new Date(
+          Date.now() + 24 * 60 * 60 * 1000
+        ).toISOString(),
+      })
+      .eq('id', payoutId)
+      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+      .select('id')
+    // PENDING_MANUAL_APPROVAL: first payouts start in this status.
+    // A failure webhook on a first payout must still mark it FAILED,
+    // otherwise admin approval would trigger a double-pay after the user was refunded.
+    // Never overwrite COMPLETED with FAILED — concurrent success webhook wins.
+
+    if (updateError) {
+      console.error(`CRITICAL: Failed to mark payout ${payoutId} as FAILED:`, updateError.message)
+      throw new Error(`Payout status update failed: ${updateError.message}`)
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      // Payout already in terminal state (e.g. COMPLETED by concurrent success webhook).
+      // Do NOT refund — the payout succeeded. Return early.
+      console.log(`Payout ${payoutId} already in terminal state — skipping refund and E4 email`)
+      return
+    }
   }
+
+  // Step 3 — Refund (runs whether payout was just marked FAILED or was already FAILED)
+  // awardCredits idempotency index prevents double-refund if this runs twice.
 
   // Use DB-side increment to avoid lost updates from concurrent failure webhooks.
   // Two concurrent calls reading retry_count=0 would both write 1 with client-side math.
@@ -79,8 +108,6 @@ export async function handlePayoutFailure(
 
   const retryCount = (newRetryCount as number) ?? (payout.retry_count as number) + 1
 
-  // Step 3 (formerly Step 2) — Refund only after FAILED status is confirmed
-  // At this point we own the FAILED transition. Safe to refund.
   try {
     await awardCredits(
       payout.user_id as string,
