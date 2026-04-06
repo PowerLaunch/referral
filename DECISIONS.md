@@ -18,6 +18,7 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-05 | PR 3-B-patch: voidPendingCredits() + VOIDED referral status | Auto-voids pending referrals on CRITICAL fraud flag | packages/api/src/credits.ts, packages/api/src/fraudRules.ts, migration 20260405000001 |
 | 2026-04-05 | PR 3-B-patch fix: voidPendingCredits now covers both referrer and referee roles | BugBot catch — fraudulent referee's referrer would otherwise still earn credits | packages/api/src/credits.ts |
 | 2026-04-05 | PR 3-B-patch fix: confirm_referral RPC now awards credits atomically | Race condition between voidPendingCredits and confirmation cron could orphan credits | apps/shell/supabase/migrations/20260404000009_confirm_referral_rpc.sql, confirm-referrals/route.ts |
+| 2026-04-06 | PRs 4-B and 4-C combined into single PR (feat/fraud-rules-r1-r7) | Both PRs implement fraud detection — combining reduces context switching and integration overhead | All R1–R7 rules in fraudRules.ts, status and trust_level are separate columns per spec |
 
 ---
 

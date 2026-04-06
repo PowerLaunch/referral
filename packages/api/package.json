@@ -12,7 +12,9 @@
     "./maturityCheckpoint": "./src/maturityCheckpoint.ts",
     "./fraudRules": "./src/fraudRules.ts",
     "./payoutFailure": "./src/payoutFailure.ts",
-    "./riskScore": "./src/riskScore.ts"
+    "./riskScore": "./src/riskScore.ts",
+    "./kycHash": "./src/kycHash.ts",
+    "./statusDisplay": "./src/statusDisplay.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

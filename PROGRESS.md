@@ -6,10 +6,10 @@
 
 ## Current Status
 **Phase:** Phase 4 — Fraud & Risk Engine (in progress)
-**Last updated:** 2026-04-05
-**Last Completed PR:** 4-A (feat/risk-scoring)
-**Next PR:** 4-B (feat/fraud-rules-r1-r6)
-**Overall Progress:** 11 / 35 PRs complete
+**Last updated:** 2026-04-06
+**Last Completed PR:** 4-C (feat/fraud-rules-r1-r7)
+**Next PR:** 4-D (feat/fraud-dashboard)
+**Overall Progress:** 14 / 35 PRs complete
 
 ---
 
@@ -155,6 +155,8 @@ Complete these before starting PR 5-A:
 | 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
 | 3-D | feat/payout-workflow | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
 | 4-A | feat/risk-scoring | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 4-B | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
+| 4-C | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
 
 ---
 
@@ -182,5 +184,6 @@ Complete these before starting PR 5-A:
 | 2026-04-04 | feat/maturity-checkpoint | PR 3-C | Maturity checkpoint: freeze/unfreeze RPCs, webhook stub |
 | 2026-04-04 | feat/maturity-checkpoint | PR #12 merged | PR 3-C: Maturity checkpoint (freeze/unfreeze referral lock timers) |
 | 2026-04-05 | feat/referral-confirmation-patch | PR 3-B-patch | Payment collateral check, voidPendingCredits, fraud void hook |
-| 2026-04-05 | feat/payout-workflow | 3-D | Payout request, failure handler, recurring cron, frozen guard | — |
-| 2026-04-05 | 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables | — |
+| 2026-04-05 | feat/payout-workflow | PR 3-D | Payout request, failure handler, recurring cron, frozen guard |
+| 2026-04-05 | feat/risk-scoring | PR 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 2026-04-06 | feat/fraud-rules-r1-r7 | PR 4-B/4-C (combined) | All fraud rules R1–R7, KYC hashing, shadow review status mapping, 15-min fraud scan cron |
