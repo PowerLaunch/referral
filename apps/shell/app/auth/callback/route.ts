@@ -51,6 +51,12 @@ export async function GET(request: Request) {
             .single()
 
         if (!referrerError && referrerProfile) {
+          // Self-referral prevention: DB has CHECK (referrer_id != referee_id) as hard guard.
+          // This application-level check gives a clean log instead of a swallowed DB error.
+          if (referrerProfile.id === user.id) {
+            console.warn(`Self-referral attempt blocked for user ${user.id}`)
+            // Do not create referral row. Continue to dashboard normally.
+          } else {
             // Extract IP from request headers
             const forwardedFor = request.headers.get('x-forwarded-for')
             const ip = forwardedFor
@@ -83,8 +89,9 @@ export async function GET(request: Request) {
                 lock_timer_frozen: false,
               })
 
-          if (referralError) {
-            console.error('Failed to create referral:', referralError)
+            if (referralError) {
+              console.error('Failed to create referral:', referralError)
+            }
           }
         }
       }
