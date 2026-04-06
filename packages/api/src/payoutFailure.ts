@@ -128,16 +128,20 @@ export async function handlePayoutFailure(
   }
 
   // Step 4: Send E4 notification (failure does not block)
-  try {
-    // Convert credit units to dollar string (100 units = $1.00)
-    const amountDollars = `$${((payout.amount as number) / 100).toFixed(2)}`
-    await triggerE4(
-      payout.user_id as string,
-      amountDollars,
-      errorCode
-    )
-  } catch (emailErr) {
-    console.error(`E4 email failed for payout ${payoutId}:`, emailErr)
+  if (!alreadyFailed) {
+    // Only send E4 on new failures. Recovery path (alreadyFailed=true)
+    // is completing a prior attempt — user was already notified.
+    try {
+      // Convert credit units to dollar string (100 units = $1.00)
+      const amountDollars = `$${((payout.amount as number) / 100).toFixed(2)}`
+      await triggerE4(
+        payout.user_id as string,
+        amountDollars,
+        errorCode
+      )
+    } catch (emailErr) {
+      console.error(`E4 email failed for payout ${payoutId}:`, emailErr)
+    }
   }
 
   // Step 5: Auto-retry stub for transient errors
