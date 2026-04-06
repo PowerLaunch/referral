@@ -47,10 +47,12 @@ export async function runR1SpikeDetection(): Promise<number> {
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
   // Fetch referrals created in last hour
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: recentReferrals, error } = await adminClient
     .from('referrals')
     .select('referrer_id')
     .gte('created_at', oneHourAgo)
+    .limit(10000)
 
   if (error) {
     console.error('R1: Failed to fetch recent referrals:', error.message)
@@ -104,10 +106,12 @@ export async function runR2DeviceCluster(): Promise<number> {
   const adminClient = getAdminClient()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: fingerprints, error } = await adminClient
     .from('device_fingerprints')
     .select('user_id, fingerprint_hash')
     .gte('created_at', thirtyDaysAgo)
+    .limit(10000)
 
   if (error) {
     console.error('R2: Failed to fetch device fingerprints:', error.message)
@@ -162,10 +166,12 @@ export async function runR3NewAccountVelocity(): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   // Fetch profiles created in last 7 days
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: newProfiles, error: profilesError } = await adminClient
     .from('profiles')
     .select('id, created_at, trust_level')
     .gte('created_at', sevenDaysAgo)
+    .limit(10000)
 
   if (profilesError) {
     console.error('R3: Failed to fetch new profiles:', profilesError.message)
@@ -247,12 +253,16 @@ export async function runR4CashoutSpike(): Promise<number> {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
   // Fetch current hour COMPLETED payouts
+  // Using created_at as proxy for payout timing. completed_at is wired in PR 5-B.
+  // R4 is a best-effort early warning — created_at is accurate enough for spike detection.
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: currentHourPayouts, error: currentError } = await adminClient
     .from('payouts')
     .select('amount')
     .eq('status', 'COMPLETED')
-    .gte('completed_at', currentHourStart.toISOString())
-    .lt('completed_at', currentHourEnd.toISOString())
+    .gte('created_at', currentHourStart.toISOString())
+    .lt('created_at', currentHourEnd.toISOString())
+    .limit(10000)
 
   if (currentError) {
     console.error('R4: Failed to fetch current hour payouts:', currentError.message)
@@ -265,11 +275,15 @@ export async function runR4CashoutSpike(): Promise<number> {
   )
 
   // Fetch 7-day COMPLETED payouts
+  // Using created_at as proxy for payout timing. completed_at is wired in PR 5-B.
+  // R4 is a best-effort early warning — created_at is accurate enough for spike detection.
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: weeklyPayouts, error: weeklyError } = await adminClient
     .from('payouts')
     .select('amount')
     .eq('status', 'COMPLETED')
-    .gte('completed_at', sevenDaysAgo.toISOString())
+    .gte('created_at', sevenDaysAgo.toISOString())
+    .limit(10000)
 
   if (weeklyError) {
     console.error('R4: Failed to fetch weekly payouts:', weeklyError.message)
@@ -334,11 +348,13 @@ export async function runR5ZeroGameplay(): Promise<number> {
   const adminClient = getAdminClient()
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: oldPendingReferrals, error } = await adminClient
     .from('referrals')
     .select('id, referee_id')
     .eq('status', 'PENDING')
     .lte('created_at', threeDaysAgo)
+    .limit(10000)
 
   if (error) {
     console.error('R5: Failed to fetch old pending referrals:', error.message)
@@ -433,10 +449,12 @@ export async function runR6DisposableEmail(): Promise<number> {
   const adminClient = getAdminClient()
 
   // Fetch existing R6 flags to build alreadyFlagged Set
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: existingFlags, error: flagsError } = await adminClient
     .from('fraud_flags')
     .select('user_id')
     .eq('rule_triggered', 'R6_DISPOSABLE_EMAIL')
+    .limit(10000)
 
   if (flagsError) {
     console.error('R6: Failed to fetch existing flags:', flagsError.message)
@@ -448,9 +466,11 @@ export async function runR6DisposableEmail(): Promise<number> {
   )
 
   // Fetch all profiles with emails
+  // .limit(10000) prevents silent PostgREST truncation at default 1000-row cap.
   const { data: profiles, error: profilesError } = await adminClient
     .from('profiles')
     .select('id, email')
+    .limit(10000)
 
   if (profilesError) {
     console.error('R6: Failed to fetch profiles:', profilesError.message)
