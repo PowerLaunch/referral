@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 1 — Foundation (in progress)
-**Last updated:** 2026-03-28
-**Last Completed PR:** 1-C (feat/auth)
-**Next PR:** 1-D (feat/referral-code-gen)
-**Overall Progress:** 3 / 35 PRs complete
+**Phase:** Phase 4 — Fraud & Risk Engine (in progress)
+**Last updated:** 2026-04-05
+**Last Completed PR:** 4-A (feat/risk-scoring)
+**Next PR:** 4-B (feat/fraud-rules-r1-r6)
+**Overall Progress:** 11 / 35 PRs complete
 
 ---
 
@@ -151,6 +151,9 @@ Complete these before starting PR 5-A:
 | 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
 | 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
 | 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
+| 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
+| 3-D | feat/payout-workflow | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
+| 4-A | feat/risk-scoring | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
 
 ---
 
@@ -166,3 +169,17 @@ Complete these before starting PR 5-A:
 | 2026-03-27 | feat/database-schema | PR 1-B merged | Phase 1 tables + RLS + indexes merged |
 | 2026-03-28 | feat/database-schema | PR #4 merged | feat: add Phase 1 database schema and RLS policies |
 | 2026-03-28 | feat/auth | PR 1-C merged | Auth, signup, login, email verification, middleware merged |
+| 2026-04-02 | chore/vercel-build-fixes | PR #6 merged | chore: fix Vercel build issues |
+| 2026-04-02 | feat/shell-app | PR 2-B | Shell game: dummy puzzle, heartbeat, gameplay tracking |
+| 2026-04-03 | feat/shell-app | PR 2-B merged | Shell game: dummy puzzle, heartbeat, gameplay tracking, security fixes |
+| 2026-04-03 | feat/shell-app | PR #7 merged | feat: add minimal daily puzzle shell game (PR 2-B) |
+| 2026-04-03 | feat/email-templates | PR #8 merged | feat: add Resend email infrastructure and 5 transactional templates |
+| 2026-04-04 | feat/lock-periods | PR #9 merged | feat: lock period calculation and signup bonus (PR 2-D) |
+| 2026-04-04 | feat/credit-system | PR #10 merged | PR 3-A: Canonical credit ledger system |
+| 2026-04-04 | feat/referral-confirmation | PR 3-B | Referral confirmation cron, audit logs, cap check |
+| 2026-04-04 | feat/referral-confirmation | PR #11 merged | feat: Referral confirmation cron job (PR 3-B) |
+| 2026-04-04 | feat/maturity-checkpoint | PR 3-C | Maturity checkpoint: freeze/unfreeze RPCs, webhook stub |
+| 2026-04-04 | feat/maturity-checkpoint | PR #12 merged | PR 3-C: Maturity checkpoint (freeze/unfreeze referral lock timers) |
+| 2026-04-05 | feat/referral-confirmation-patch | PR 3-B-patch | Payment collateral check, voidPendingCredits, fraud void hook |
+| 2026-04-05 | feat/payout-workflow | 3-D | Payout request, failure handler, recurring cron, frozen guard | — |
+| 2026-04-05 | 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables | — |
