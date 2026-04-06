@@ -563,6 +563,7 @@ export async function checkIdentityCluster(
         oldTrust: conflictingProfile.trust_level,
       },
     ]) {
+      // Guard: never downgrade a BANNED account. R7 flags for review but admin bans are permanent.
       await adminClient
         .from('profiles')
         .update({
@@ -570,6 +571,8 @@ export async function checkIdentityCluster(
           trust_level: 'SUSPICIOUS',
         })
         .eq('id', targetUser.id)
+        .not('trust_level', 'eq', 'BANNED')
+        .not('status', 'eq', 'BANNED')
 
       // c) Insert CRITICAL fraud_flag for this account
       await insertFraudFlag({
