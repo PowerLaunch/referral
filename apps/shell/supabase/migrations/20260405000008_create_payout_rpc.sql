@@ -5,6 +5,9 @@
 -- This function does the deduction inline (not via deduct_credits RPC) because
 -- calling one Supabase RPC from another requires PERFORM which cannot capture
 -- the FOUND check cleanly for the balance guard.
+--
+-- NOTE: Deduction logic here must stay in sync with deductCredits() in
+-- packages/api/src/credits.ts. If either changes, update both.
 
 CREATE OR REPLACE FUNCTION create_payout(
   p_user_id uuid,

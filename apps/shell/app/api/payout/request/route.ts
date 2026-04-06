@@ -5,7 +5,7 @@
 import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
-import { getAdminClient, getBalance } from '@referral/api/credits'
+import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -166,7 +166,9 @@ export async function POST(request: Request): Promise<Response> {
 
     // Guard G — Balance check
     // Note: the RPC also checks balance, but pre-checking here gives a clean error.
-    const balance = await getBalance(user.id, 'CASH_BALANCE')
+    // CASHABLE_CREDIT_TYPE enforces that only CASH_BALANCE is ever
+    // used in payout flows. GAME_CREDITS are non-cashable by design (spec 2.7).
+    const balance = await getBalance(user.id, CASHABLE_CREDIT_TYPE)
     if (balance < amount) {
       return Response.json({ error: 'Insufficient balance' }, { status: 400 })
     }
