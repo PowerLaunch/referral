@@ -96,17 +96,20 @@ export async function handlePayoutFailure(
   // Step 3 — Refund (runs whether payout was just marked FAILED or was already FAILED)
   // awardCredits idempotency index prevents double-refund if this runs twice.
 
-  // Use DB-side increment to avoid lost updates from concurrent failure webhooks.
-  // Two concurrent calls reading retry_count=0 would both write 1 with client-side math.
-  // The raw SQL expression increments atomically on the DB side.
-  const { data: newRetryCount, error: retryError } = await adminClient
-    .rpc('increment_payout_retry', { p_payout_id: payoutId })
-
-  if (retryError) {
-    console.error(`Failed to increment retry_count for payout ${payoutId}:`, retryError.message)
+  // Only increment retry_count for new failures, not recovery attempts.
+  // Recovery path (alreadyFailed=true) is completing a previously started
+  // failure handler — not a new failure event.
+  let newRetryCount: number | null = null
+  if (!alreadyFailed) {
+    const { data: retryData, error: retryError } = await adminClient
+      .rpc('increment_payout_retry', { p_payout_id: payoutId })
+    if (retryError) {
+      console.error(`Failed to increment retry_count for payout ${payoutId}:`, retryError.message)
+    }
+    newRetryCount = retryData as number | null
   }
 
-  const retryCount = (newRetryCount as number) ?? (payout.retry_count as number) + 1
+  const retryCount = newRetryCount ?? (payout.retry_count as number) + 1
 
   try {
     await awardCredits(
