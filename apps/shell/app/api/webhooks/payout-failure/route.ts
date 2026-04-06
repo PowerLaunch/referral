@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { handlePayoutFailure } from '@referral/api/payoutFailure'
+import { safeCompare } from '@/lib/crypto'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Verify stub secret (real provider HMAC validation added in PR 5-B)
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
   }
   const secret = request.headers.get('x-webhook-secret')
-  if (!secret || secret !== process.env.PAYOUT_WEBHOOK_SECRET) {
+  if (!secret || !safeCompare(secret, process.env.PAYOUT_WEBHOOK_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
