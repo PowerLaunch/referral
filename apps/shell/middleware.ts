@@ -1,9 +1,43 @@
 import { updateSession } from '@/lib/supabase/middleware'
 import { type NextRequest, NextResponse } from 'next/server'
 
+// Rate limit state for /ref/* routes. Module-level Map persists within
+// a single serverless instance. Each Vercel instance has its own Map.
+// This is best-effort — not a global rate limiter — but stops simple
+// bot scripts from flooding a single edge node.
+const refRateLimit = new Map<string, { count: number; windowStart: number }>()
+
 export async function middleware(request: NextRequest) {
   // Refresh session and get response with updated cookies
   const { response: supabaseResponse, user } = await updateSession(request)
+
+  // --- Rate limit for /ref/* referral redirect routes ---
+  // Prevents bot-driven click flooding. 10 requests per IP per 60 seconds.
+  // Uses module-level Map (persists within a single serverless instance).
+  // Memory is bounded: stale entries cleaned on every request.
+  if (request.nextUrl.pathname.startsWith('/ref/')) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const now = Date.now()
+    const windowMs = 60_000 // 1 minute
+    const maxRequests = 10
+
+    // Clean stale entries (older than windowMs)
+    for (const [key, entry] of refRateLimit.entries()) {
+      if (now - entry.windowStart > windowMs) {
+        refRateLimit.delete(key)
+      }
+    }
+
+    const existing = refRateLimit.get(ip)
+    if (existing && now - existing.windowStart < windowMs) {
+      existing.count++
+      if (existing.count > maxRequests) {
+        return new NextResponse('Too many requests', { status: 429 })
+      }
+    } else {
+      refRateLimit.set(ip, { count: 1, windowStart: now })
+    }
+  }
 
   // Helper to preserve session cookies on redirects
   function redirectWithCookies(url: string): NextResponse {
@@ -81,10 +115,15 @@ export async function middleware(request: NextRequest) {
         isPayoutRoute &&
         (profile.status === 'REVIEW_HOLD' || profile.trust_level === 'SUSPICIOUS')
       ) {
-        return NextResponse.json(
+        const blockedResponse = NextResponse.json(
           { error: 'Payout temporarily unavailable' },
           { status: 403 }
         )
+        // Preserve session cookies so auth tokens are not lost
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          blockedResponse.cookies.set(cookie)
+        })
+        return blockedResponse
       }
 
       // Set headers for downstream API routes (defense-in-depth)

@@ -246,23 +246,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
 
       if (riskCategory === 'HIGH') {
-        // Insert INFO flag to track high-risk pending referral
-        // Idempotent index handles duplicate inserts, so .catch(() => {}) is safe
-        await adminClient
-          .from('fraud_flags')
-          .insert({
-            user_id: referral.referee_id,
-            rule_triggered: 'HIGH_RISK_PENDING_REVIEW',
-            severity: 'INFO',
-            details: {
-              referral_id: referral.id,
-              risk_score: riskScore,
-            },
-          })
-          .catch(() => {
-            // Idempotency index blocked duplicate — safe to ignore
-          })
-
+        // HIGH risk (61-99): skip confirmation, leave PENDING for admin review.
+        // Do NOT insert a tracking flag — it would inflate the risk score by +10
+        // on the next cron run, causing unintended escalation to CRITICAL.
+        // The underlying flags that caused the HIGH score are already visible
+        // in the admin fraud dashboard.
         console.log(
           `Referral ${referral.id} skipped: Referee risk score HIGH (${riskScore}) — pending review`
         )

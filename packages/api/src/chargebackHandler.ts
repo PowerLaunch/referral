@@ -87,6 +87,28 @@ export async function handleChargeback(
       `Chargeback #${chargebackNumber} — permanent ban`
     )
 
+    // Also freeze referrals where this user is the REFEREE.
+    // freezeReferralsForUser only covers referrer_id.
+    // For chargebacks, we must also prevent the referrer from earning
+    // credits from a disputed referee's subscription payment.
+    const { data: refereeReferrals, error: refereeRefError } = await adminClient
+      .from('referrals')
+      .select('id')
+      .eq('referee_id', userId)
+      .eq('status', 'PENDING')
+      .eq('lock_timer_frozen', false)
+
+    if (!refereeRefError && refereeReferrals && refereeReferrals.length > 0) {
+      for (const ref of refereeReferrals) {
+        await adminClient.rpc('freeze_referral', {
+          p_referral_id: ref.id,
+          p_reason: `Chargeback on referee ${userId} — referee-side freeze`,
+        }).catch((err: unknown) => {
+          console.error(`Failed to freeze referee-side referral ${ref.id}:`, err)
+        })
+      }
+    }
+
     // d) Log to admin audit trail
     if (currentStatus !== 'BANNED') {
       await logAdminAction({
@@ -131,6 +153,28 @@ export async function handleChargeback(
       userId,
       'First chargeback — pending admin review'
     )
+
+    // Also freeze referrals where this user is the REFEREE.
+    // freezeReferralsForUser only covers referrer_id.
+    // For chargebacks, we must also prevent the referrer from earning
+    // credits from a disputed referee's subscription payment.
+    const { data: refereeReferrals, error: refereeRefError } = await adminClient
+      .from('referrals')
+      .select('id')
+      .eq('referee_id', userId)
+      .eq('status', 'PENDING')
+      .eq('lock_timer_frozen', false)
+
+    if (!refereeRefError && refereeReferrals && refereeReferrals.length > 0) {
+      for (const ref of refereeReferrals) {
+        await adminClient.rpc('freeze_referral', {
+          p_referral_id: ref.id,
+          p_reason: `Chargeback on referee ${userId} — referee-side freeze`,
+        }).catch((err: unknown) => {
+          console.error(`Failed to freeze referee-side referral ${ref.id}:`, err)
+        })
+      }
+    }
 
     // d) Log to admin audit trail
     if (currentStatus !== 'REVIEW_HOLD') {

@@ -531,6 +531,95 @@ export async function runR6DisposableEmail(): Promise<number> {
 }
 
 /**
+ * Geo-mismatch rule: Flags referrers whose referees are predominantly
+ * from a different country than the referrer.
+ * Runs on the 15-minute cron alongside R1-R6.
+ * @returns Count of users flagged
+ */
+export async function runGeoMismatch(): Promise<number> {
+  const adminClient = getAdminClient()
+
+  // Fetch referrals with country data, grouped by referrer
+  // .limit(10000) prevents silent PostgREST truncation
+  const { data: referrals, error } = await adminClient
+    .from('referrals')
+    .select('referrer_id, referee_id, country_code')
+    .in('status', ['PENDING', 'CONFIRMED'])
+    .not('country_code', 'is', null)
+    .limit(10000)
+
+  if (error) {
+    console.error('GeoMismatch: Failed to fetch referrals:', error.message)
+    return 0
+  }
+  if (!referrals || referrals.length === 0) return 0
+
+  // Group referrals by referrer
+  const byReferrer = new Map<string, string[]>()
+  for (const ref of referrals) {
+    if (!byReferrer.has(ref.referrer_id)) {
+      byReferrer.set(ref.referrer_id, [])
+    }
+    byReferrer.get(ref.referrer_id)!.push(ref.country_code)
+  }
+
+  let flaggedCount = 0
+
+  for (const [referrerId, refCountries] of byReferrer.entries()) {
+    if (refCountries.length < 3) continue // Need 3+ referees to assess
+
+    // Get the referrer's own country from their profile or first referral
+    const { data: referrerProfile } = await adminClient
+      .from('referrals')
+      .select('country_code')
+      .eq('referee_id', referrerId)
+      .not('country_code', 'is', null)
+      .limit(1)
+      .maybeSingle()
+
+    // If referrer was never referred themselves, infer country from their
+    // referrals' majority. But the real signal is: are all referees from
+    // a DIFFERENT country than each other or from the referrer?
+    // Simpler approach: check if 3+ referees share a country that differs
+    // from the mode of the referrer's own referrals.
+
+    // Simplest heuristic: if referrer has 3+ referees and the referees'
+    // countries have 3+ distinct values, OR 3+ referees are from a single
+    // country different from the referrer's country, flag.
+
+    // For MVP: flag if 3+ referees have a country_code different from
+    // the most common country_code among this referrer's referees.
+    // This catches farm patterns where one person in country A recruits
+    // accounts from country B.
+
+    // Get referrer's own country (from their profile being a referee)
+    const referrerCountry = referrerProfile?.country_code ?? null
+
+    if (!referrerCountry) continue // Can't compare without referrer's country
+
+    // Count how many referees are from a different country
+    const mismatchCount = refCountries.filter(c => c !== referrerCountry).length
+
+    if (mismatchCount >= 3) {
+      const wasInserted = await insertFraudFlag({
+        userId: referrerId,
+        ruleTriggered: 'R_GEO_MISMATCH',
+        severity: 'WARNING',
+        details: {
+          referrer_country: referrerCountry,
+          mismatch_count: mismatchCount,
+          total_referees: refCountries.length,
+        },
+      })
+
+      if (wasInserted) flaggedCount++
+    }
+  }
+
+  return flaggedCount
+}
+
+/**
  * R7: Identity Cluster (Sybil Detection)
  * Fires in real-time during KYC approval (called from PR 5-C), not from cron.
  * Attempts to set verified_kyc_hash on profile. If UNIQUE violation occurs,

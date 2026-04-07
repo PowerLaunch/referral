@@ -306,6 +306,12 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Payout creation failed' }, { status: 500 })
     }
 
+    // NOTE: This payout is now PENDING or PENDING_MANUAL_APPROVAL.
+    // It will not be executed (funds sent) until:
+    // 1. 24-hour staging window passes (isPayoutStagingComplete check in PR 5-B)
+    // 2. Admin approves (if first payout)
+    // The 15-minute fraud cron runs multiple times in this window.
+
     // Step 6 — Return success
     const rawStatus = isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
     return Response.json({
