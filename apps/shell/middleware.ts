@@ -97,6 +97,18 @@ export async function middleware(request: NextRequest) {
       // On query error, fail safe: allow through and let route handlers enforce.
       // Log error but don't block user — transient DB errors should not freeze access.
       console.error('Middleware: profiles query failed:', profileError.message)
+      // Strip defense-in-depth headers to prevent client spoofing on error fallthrough.
+      // Without this, a malicious client could set x-user-trust-level: CLEAN and
+      // it would pass through to route handlers during transient DB errors.
+      const sanitizedHeaders = new Headers(request.headers)
+      sanitizedHeaders.delete('x-user-trust-level')
+      sanitizedHeaders.delete('x-user-status')
+      sanitizedHeaders.delete('x-user-review-hold')
+      const sanitizedResponse = NextResponse.next({ request: { headers: sanitizedHeaders } })
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        sanitizedResponse.cookies.set(cookie)
+      })
+      return sanitizedResponse
     } else if (profile) {
       // Redirect BANNED or FROZEN users to /account-frozen
       if (

@@ -1,6 +1,8 @@
 // Called by payment webhook (PR 5-A) when a dispute is received.
 // One chargeback = freeze + admin review. Two chargebacks = permanent ban.
 // Per spec Section 6.5.
+// NOTE: This function is exported but not yet called. It will be wired
+// to the payment provider's dispute webhook handler in PR 5-A.
 
 import { getAdminClient } from './credits'
 import { freezeReferralsForUser } from './maturityCheckpoint'
