@@ -71,7 +71,7 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **Implemented in**: PR 4-C
 
 ### R_GEO_MISMATCH — Geographic Mismatch
-- **Trigger**: Referrer has 3+ referees from a different country than the referrer
+- **Trigger**: Referrer has referees from 3+ distinct countries (high geographic diversity suggests farm pattern)
 - **Action**: Insert WARNING fraud_flag (rule: 'R_GEO_MISMATCH')
 - **Fires**: On 15-minute cron alongside R1-R6
 - **Implemented in**: PR 4-D

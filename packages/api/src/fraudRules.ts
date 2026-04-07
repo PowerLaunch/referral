@@ -539,11 +539,11 @@ export async function runR6DisposableEmail(): Promise<number> {
 export async function runGeoMismatch(): Promise<number> {
   const adminClient = getAdminClient()
 
-  // Fetch referrals with country data, grouped by referrer
+  // Fetch referrals with country data
   // .limit(10000) prevents silent PostgREST truncation
   const { data: referrals, error } = await adminClient
     .from('referrals')
-    .select('referrer_id, referee_id, country_code')
+    .select('referrer_id, country_code')
     .in('status', ['PENDING', 'CONFIRMED'])
     .not('country_code', 'is', null)
     .limit(10000)
@@ -554,7 +554,7 @@ export async function runGeoMismatch(): Promise<number> {
   }
   if (!referrals || referrals.length === 0) return 0
 
-  // Group referrals by referrer
+  // Group referee country_codes by referrer
   const byReferrer = new Map<string, string[]>()
   for (const ref of referrals) {
     if (!byReferrer.has(ref.referrer_id)) {
@@ -568,36 +568,21 @@ export async function runGeoMismatch(): Promise<number> {
   for (const [referrerId, refCountries] of byReferrer.entries()) {
     if (refCountries.length < 3) continue // Need 3+ referees to assess
 
-    // Infer referrer's country from the mode (most common) of their
-    // referees' country codes. This works for both organically signed-up
-    // referrers and referred referrers.
-    const countryCounts = new Map<string, number>()
-    for (const c of refCountries) {
-      countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
-    }
+    // Count distinct countries among referees
+    const distinctCountries = new Set(refCountries)
 
-    // Find the mode (most frequent country)
-    let modeCountry = ''
-    let modeCount = 0
-    for (const [country, count] of countryCounts.entries()) {
-      if (count > modeCount) {
-        modeCountry = country
-        modeCount = count
-      }
-    }
-
-    // Count referees that differ from the mode
-    const mismatchCount = refCountries.length - modeCount
-
-    if (mismatchCount >= 3) {
+    // Flag if referees are from 3+ distinct countries.
+    // Legitimate referrers typically recruit from 1-2 countries.
+    // 3+ distinct countries strongly suggests a farm pattern.
+    if (distinctCountries.size >= 3) {
       const wasInserted = await insertFraudFlag({
         userId: referrerId,
         ruleTriggered: 'R_GEO_MISMATCH',
         severity: 'WARNING',
         details: {
-          inferred_country: modeCountry,
-          mismatch_count: mismatchCount,
+          distinct_countries: distinctCountries.size,
           total_referees: refCountries.length,
+          countries: Array.from(distinctCountries).slice(0, 10), // Cap for readability
         },
       })
 
