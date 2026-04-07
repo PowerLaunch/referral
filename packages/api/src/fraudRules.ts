@@ -620,10 +620,27 @@ export async function checkIdentityCluster(
       }
     }
 
-    // e) Do NOT send E5 email. REVIEW_HOLD is shadow review — user sees 'Verifying'.
+    // e) Void pending referrals for both Sybil-detected accounts.
+    // Without this, the confirmation cron can still confirm and pay out
+    // referrals from accounts proven to share the same identity.
+    try {
+      await onCriticalFraudFlag(userId, 'R7_IDENTITY_CLUSTER')
+    } catch (err) {
+      console.error(`Failed to void pending referrals for user ${userId}:`, err)
+      // Do not throw — the fraud flag and REVIEW_HOLD are already set.
+      // Void failure is logged but should not block the Sybil detection flow.
+    }
+
+    try {
+      await onCriticalFraudFlag(conflictingUserId, 'R7_IDENTITY_CLUSTER')
+    } catch (err) {
+      console.error(`Failed to void pending referrals for user ${conflictingUserId}:`, err)
+    }
+
+    // f) Do NOT send E5 email. REVIEW_HOLD is shadow review — user sees 'Verifying'.
     // E5 fires only when status becomes BANNED.
 
-    // f) Return Sybil detected
+    // g) Return Sybil detected
     return { isCluster: true, conflictingUserId }
   }
 
