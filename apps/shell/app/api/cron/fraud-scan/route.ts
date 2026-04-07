@@ -10,6 +10,7 @@ import {
   runR4CashoutSpike,
   runR5ZeroGameplay,
   runR6DisposableEmail,
+  runGeoMismatch,
 } from '@referral/api/fraudRules'
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -99,6 +100,17 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R6_DISPOSABLE_EMAIL', flagged: 0, error: errorMessage })
     console.error('R6 failed:', error)
+  }
+
+  // Geo-Mismatch
+  try {
+    const flagged = await runGeoMismatch()
+    results.push({ rule: 'R_GEO_MISMATCH', flagged })
+    totalFlagged += flagged
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    results.push({ rule: 'R_GEO_MISMATCH', flagged: 0, error: errorMessage })
+    console.error('GeoMismatch failed:', error)
   }
 
   // Step 3 — Return summary

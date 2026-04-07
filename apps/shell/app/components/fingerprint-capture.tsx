@@ -38,6 +38,14 @@ export default function FingerprintCapture() {
     // Send to server (fire and forget — never await in a way that blocks)
     hashFingerprint(raw)
       .then((fingerprintHash) => {
+        // Set fingerprint cookie for middleware access (PR 4-D)
+        // Not HttpOnly because it's set from JS. Value is a hash, not sensitive.
+        // 30-day expiry matches device re-auth grace period.
+        // TODO Phase 8: Use force_reauth column on profiles for R2-specific
+        // device re-auth. Current implementation blocks SUSPICIOUS users from
+        // payout routes via middleware trust_level check.
+        document.cookie = `device-fp=${fingerprintHash};path=/;max-age=${60 * 60 * 24 * 30};samesite=strict`
+
         return fetch('/api/fingerprint', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

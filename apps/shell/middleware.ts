@@ -1,9 +1,41 @@
 import { updateSession } from '@/lib/supabase/middleware'
 import { type NextRequest, NextResponse } from 'next/server'
 
+// Rate limit state for /ref/* routes. Module-level Map persists within
+// a single serverless instance. Each Vercel instance has its own Map.
+// This is best-effort — not a global rate limiter — but stops simple
+// bot scripts from flooding a single edge node.
+const refRateLimit = new Map<string, { count: number; windowStart: number }>()
+
 export async function middleware(request: NextRequest) {
+  // --- Rate limit for /ref/* referral redirect routes ---
+  // Checked BEFORE updateSession to avoid hitting Supabase auth API
+  // on every bot request. The rate limiter only needs the IP address.
+  if (request.nextUrl.pathname.startsWith('/ref/')) {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const now = Date.now()
+    const windowMs = 60_000
+    const maxRequests = 10
+
+    for (const [key, entry] of refRateLimit.entries()) {
+      if (now - entry.windowStart > windowMs) {
+        refRateLimit.delete(key)
+      }
+    }
+
+    const existing = refRateLimit.get(ip)
+    if (existing && now - existing.windowStart < windowMs) {
+      existing.count++
+      if (existing.count > maxRequests) {
+        return new NextResponse('Too many requests', { status: 429 })
+      }
+    } else {
+      refRateLimit.set(ip, { count: 1, windowStart: now })
+    }
+  }
+
   // Refresh session and get response with updated cookies
-  const { response: supabaseResponse, user } = await updateSession(request)
+  const { response: supabaseResponse, user, supabase } = await updateSession(request)
 
   // Helper to preserve session cookies on redirects
   function redirectWithCookies(url: string): NextResponse {
@@ -36,27 +68,95 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(verifyUrl)
   }
 
-  // Trust level enforcement for payout routes is handled in the route handler
-  // (Guard A and Guard B in /api/payout/request/route.ts). Middleware runs on
-  // Edge Runtime where the service-role admin client is not compatible.
+  // PR 4-D: Fraud middleware — Query profiles table for trust_level and status.
+  // Performance: This DB query runs for ALL authenticated routes EXCEPT webhooks/crons.
+  // The cookie-based Supabase client is Edge Runtime compatible (no Node.js crypto).
+  //
+  // Scale note: at >1000 users, consider caching trust_level in a short-TTL
+  // cookie (5 min) refreshed on trust_level change.
 
-  // Redirect BANNED users to /account-frozen for all non-public routes.
-  // Uses cookie-based supabase client only (Edge Runtime compatible).
-  // trust_level is read from the user's JWT metadata if available,
-  // otherwise skip this check — route handlers enforce it with admin client.
-  // NOTE: user_metadata is client-writable — this check is best-effort only.
-  // Route-level guards query profiles table directly and are the authoritative check.
-  // TODO PR 4-D: Write trust_level to app_metadata (server-only) on every change.
-  const trustLevel = user.user_metadata?.trust_level as string | undefined
-  if (trustLevel === 'BANNED') {
-    // Use the existing redirectWithCookies helper to preserve refreshed
-    // Supabase session cookies set by updateSession.
-    return redirectWithCookies('/account-frozen')
+  // Skip fraud check only for routes that don't use Supabase session auth
+  // (webhooks and crons use their own auth: HMAC signatures or Bearer tokens)
+  const skipFraudCheck =
+    request.nextUrl.pathname.startsWith('/_next/') ||
+    request.nextUrl.pathname.startsWith('/api/webhooks/') ||
+    request.nextUrl.pathname.startsWith('/api/cron/')
+
+  if (!skipFraudCheck) {
+    // Query profiles for fraud status using the same Supabase client
+    // from updateSession — shares cookie management, prevents session
+    // desynchronization from a second independent client.
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('trust_level, status')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError) {
+      // On query error, fail safe: allow through and let route handlers enforce.
+      // Log error but don't block user — transient DB errors should not freeze access.
+      console.error('Middleware: profiles query failed:', profileError.message)
+      // Strip defense-in-depth headers to prevent client spoofing on error fallthrough.
+      // Without this, a malicious client could set x-user-trust-level: CLEAN and
+      // it would pass through to route handlers during transient DB errors.
+      const sanitizedHeaders = new Headers(request.headers)
+      sanitizedHeaders.delete('x-user-trust-level')
+      sanitizedHeaders.delete('x-user-status')
+      sanitizedHeaders.delete('x-user-review-hold')
+      const sanitizedResponse = NextResponse.next({ request: { headers: sanitizedHeaders } })
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        sanitizedResponse.cookies.set(cookie)
+      })
+      return sanitizedResponse
+    } else if (profile) {
+      // Redirect BANNED or FROZEN users to /account-frozen
+      if (
+        profile.trust_level === 'BANNED' ||
+        profile.status === 'FROZEN' ||
+        profile.status === 'BANNED'
+      ) {
+        return redirectWithCookies('/account-frozen')
+      }
+
+      // Block payout routes for users under review or marked suspicious
+      const isPayoutRoute = request.nextUrl.pathname.startsWith('/api/payout')
+      if (
+        isPayoutRoute &&
+        (profile.status === 'REVIEW_HOLD' || profile.trust_level === 'SUSPICIOUS')
+      ) {
+        const blockedResponse = NextResponse.json(
+          { error: 'Payout temporarily unavailable' },
+          { status: 403 }
+        )
+        // Preserve session cookies so auth tokens are not lost
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          blockedResponse.cookies.set(cookie)
+        })
+        return blockedResponse
+      }
+
+      // Set headers for downstream API routes (defense-in-depth)
+      // These headers are read by route handlers as secondary validation.
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set('x-user-trust-level', profile.trust_level || 'CLEAN')
+      requestHeaders.set('x-user-status', profile.status || 'ACTIVE')
+      if (profile.status === 'REVIEW_HOLD') {
+        requestHeaders.set('x-user-review-hold', 'true')
+      }
+
+      // Pass modified headers to route handlers, preserving session cookies
+      const nextResponse = NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      })
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        nextResponse.cookies.set(cookie)
+      })
+      return nextResponse
+    }
   }
-  // Note: trust_level in JWT metadata is only reliable if updated on every
-  // trust_level change (PR 4-D wires this). For now this is best-effort.
-  // Route-level guards are the authoritative enforcement layer.
-  // Full middleware enforcement added in PR 4-D (fraud middleware).
 
   // Session exists and email confirmed → allow through
   return supabaseResponse
@@ -68,6 +168,6 @@ export const config = {
     // not Supabase session cookies. They must be excluded from the session middleware.
     // Each cron handler validates its own secret independently.
     // Webhook routes (including /api/webhooks/payout-failure) use provider-specific HMAC.
-    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/|api/cron/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/webhooks/|api/cron/).*)',
   ],
 }

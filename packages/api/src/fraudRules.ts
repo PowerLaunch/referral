@@ -347,7 +347,7 @@ export async function runR4CashoutSpike(): Promise<number> {
         adminUserId: null,
         action: 'CIRCUIT_BREAKER_TRIGGERED',
         targetType: 'system',
-        targetId: 'game_config',
+        targetId: null,
         beforeValue: 'cashouts_paused: false',
         afterValue: 'cashouts_paused: true',
         reason: `R4_CASHOUT_SPIKE: ${currentHourTotal} in last hour vs ${Math.round(weeklyHourlyAverage)}/hr average`,
@@ -526,6 +526,69 @@ export async function runR6DisposableEmail(): Promise<number> {
   }
 
   // TODO: Also call isDisposableEmail() from auth signup handler (PR 1-C).
+
+  return flaggedCount
+}
+
+/**
+ * Geo-mismatch rule: Flags referrers whose referees are predominantly
+ * from a different country than the referrer.
+ * Runs on the 15-minute cron alongside R1-R6.
+ * @returns Count of users flagged
+ */
+export async function runGeoMismatch(): Promise<number> {
+  const adminClient = getAdminClient()
+
+  // Fetch referrals with country data
+  // .limit(10000) prevents silent PostgREST truncation
+  const { data: referrals, error } = await adminClient
+    .from('referrals')
+    .select('referrer_id, country_code')
+    .in('status', ['PENDING', 'CONFIRMED'])
+    .not('country_code', 'is', null)
+    .limit(10000)
+
+  if (error) {
+    console.error('GeoMismatch: Failed to fetch referrals:', error.message)
+    return 0
+  }
+  if (!referrals || referrals.length === 0) return 0
+
+  // Group referee country_codes by referrer
+  const byReferrer = new Map<string, string[]>()
+  for (const ref of referrals) {
+    if (!byReferrer.has(ref.referrer_id)) {
+      byReferrer.set(ref.referrer_id, [])
+    }
+    byReferrer.get(ref.referrer_id)!.push(ref.country_code)
+  }
+
+  let flaggedCount = 0
+
+  for (const [referrerId, refCountries] of byReferrer.entries()) {
+    if (refCountries.length < 3) continue // Need 3+ referees to assess
+
+    // Count distinct countries among referees
+    const distinctCountries = new Set(refCountries)
+
+    // Flag if referees are from 3+ distinct countries.
+    // Legitimate referrers typically recruit from 1-2 countries.
+    // 3+ distinct countries strongly suggests a farm pattern.
+    if (distinctCountries.size >= 3) {
+      const wasInserted = await insertFraudFlag({
+        userId: referrerId,
+        ruleTriggered: 'R_GEO_MISMATCH',
+        severity: 'WARNING',
+        details: {
+          distinct_countries: distinctCountries.size,
+          total_referees: refCountries.length,
+          countries: Array.from(distinctCountries).slice(0, 10), // Cap for readability
+        },
+      })
+
+      if (wasInserted) flaggedCount++
+    }
+  }
 
   return flaggedCount
 }

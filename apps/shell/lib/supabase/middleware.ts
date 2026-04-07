@@ -34,5 +34,5 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  return { response: supabaseResponse, user }
+  return { response: supabaseResponse, user, supabase }
 }
