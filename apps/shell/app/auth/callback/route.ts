@@ -7,6 +7,7 @@ import {
   isVpnDetected,
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
+import { createEmailPreferences } from '@referral/api/email'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -50,6 +51,12 @@ export async function GET(request: Request) {
             .single()
 
         if (!referrerError && referrerProfile) {
+          // Self-referral prevention: DB has CHECK (referrer_id != referee_id) as hard guard.
+          // This application-level check gives a clean log instead of a swallowed DB error.
+          if (referrerProfile.id === user.id) {
+            console.warn(`Self-referral attempt blocked for user ${user.id}`)
+            // Do not create referral row. Continue to dashboard normally.
+          } else {
             // Extract IP from request headers
             const forwardedFor = request.headers.get('x-forwarded-for')
             const ip = forwardedFor
@@ -82,8 +89,9 @@ export async function GET(request: Request) {
                 lock_timer_frozen: false,
               })
 
-          if (referralError) {
-            console.error('Failed to create referral:', referralError)
+            if (referralError) {
+              console.error('Failed to create referral:', referralError)
+            }
           }
         }
       }
@@ -103,19 +111,23 @@ export async function GET(request: Request) {
         // The RPC function handles both ledger entry and balance update atomically.
         try {
           await awardCredits(user.id, signupBonusAmount, 'GAME_CREDITS', 'signup_bonus')
-        } catch (error) {
-          // Check if it's a duplicate signup bonus (23505 unique constraint violation)
-          if ((error as { code?: string }).code === '23505') {
-            console.log(
-              'Signup bonus already awarded (concurrent request blocked by unique constraint)'
-            )
+        } catch (error: unknown) {
+          const pgError = error as { code?: string }
+          if (pgError?.code === '23505') {
+            // Duplicate signup bonus — idempotent, safe to ignore and continue.
+            console.log('Signup bonus already awarded — skipping duplicate')
           } else {
-            // Other error — log and continue (don't block login)
-            console.error('Failed to award signup bonus:', error)
-          }
-          return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+              // Log but do not throw — email_preferences must still be created.
+              // A transient bonus failure should not leave the user without email prefs.
+              console.error('Failed to award signup bonus (non-duplicate error):', error)
+            }
         }
       }
+
+      // Create email preferences row for new user (required by triggerE1-E4)
+      await createEmailPreferences(user.id)
+      // Uses the canonical utility from packages/api/src/email.ts.
+      // Errors are handled inside the utility — no try/catch needed here.
     } catch (err) {
       console.error('Signup flow error:', err)
       // Don't block login on referral/bonus errors

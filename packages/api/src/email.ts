@@ -2,7 +2,8 @@
 // Trigger functions are called by referral engine (Phase 3), payout system (Phase 3-D/5-B), and fraud middleware (Phase 4-D).
 
 import { Resend } from 'resend'
-import { createAdminClient } from '../../../apps/shell/lib/supabase/admin'
+// Uses shared admin client from credits.ts — never import from apps/shell directly.
+import { getAdminClient } from './credits'
 
 // Update this domain before launch
 const FROM_EMAIL = process.env.FROM_EMAIL ?? 'noreply@yourdomain.com'
@@ -312,7 +313,7 @@ export async function triggerE1(
   refereeEmail: string
 ): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Look up referrer's email
     const { data: referrerProfile, error: profileError } = await adminClient
@@ -358,7 +359,7 @@ export async function triggerE1(
  */
 export async function triggerE2(referrerId: string): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Look up referrer's email
     const { data: referrerProfile, error: profileError } = await adminClient
@@ -405,7 +406,7 @@ export async function triggerE3(
   method: string
 ): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Look up referrer's email
     const { data: referrerProfile, error: profileError } = await adminClient
@@ -452,7 +453,7 @@ export async function triggerE4(
   errorReason: string
 ): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Look up referrer's email
     const { data: referrerProfile, error: profileError } = await adminClient
@@ -496,7 +497,7 @@ export async function triggerE4(
  */
 export async function triggerE5(userId: string): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     // Look up user's email
     const { data: userProfile, error: profileError } = await adminClient
@@ -530,7 +531,7 @@ export async function triggerE5(userId: string): Promise<void> {
  */
 export async function createEmailPreferences(userId: string): Promise<void> {
   try {
-    const adminClient = createAdminClient()
+    const adminClient = getAdminClient()
 
     const { error } = await adminClient
       .from('email_preferences')

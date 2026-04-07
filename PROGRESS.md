@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 3 — Referral Engine (in progress)
-**Last updated:** 2026-04-04
-**Last Completed PR:** 3-C (feat/maturity-checkpoint)
-**Next PR:** 3-D (feat/payout-workflow)
-**Overall Progress:** 9 / 35 PRs complete
+**Phase:** Phase 4 — Fraud & Risk Engine (in progress)
+**Last updated:** 2026-04-06
+**Last Completed PR:** 4-C (feat/fraud-rules-r1-r7)
+**Next PR:** 4-D (feat/fraud-dashboard)
+**Overall Progress:** 14 / 35 PRs complete
 
 ---
 
@@ -135,6 +135,7 @@ Complete these before starting PR 5-A:
 |----|---------------------|--------|
 | OQ-06 | Domain name: get a real domain before marketing, Vercel subdomain fine for testing | OPEN |
 | OQ-07 | Referral link base URL: update NEXT_PUBLIC_APP_URL in .env.local before Phase 5 — links must use final domain before any real users see them | OPEN |
+| REMINDER | Set SUBSCRIPTION_WEBHOOK_SECRET in Vercel env vars before PR 5-A. Also add real provider HMAC validation to replace stub in /api/webhooks/subscription. | Blocking Phase 5 |
 
 ---
 
@@ -152,6 +153,10 @@ Complete these before starting PR 5-A:
 | 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
 | 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
 | 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
+| 3-D | feat/payout-workflow | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
+| 4-A | feat/risk-scoring | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 4-B | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
+| 4-C | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
 
 ---
 
@@ -180,3 +185,6 @@ Complete these before starting PR 5-A:
 | 2026-04-04 | feat/maturity-checkpoint | PR #12 merged | PR 3-C: Maturity checkpoint (freeze/unfreeze referral lock timers) |
 | 2026-04-05 | feat/referral-confirmation-patch | PR 3-B-patch | Payment collateral check, voidPendingCredits, fraud void hook |
 | 2026-04-05 | feat/referral-confirmation-patch | PR #13 merged | PR 3-B-patch: Payment collateralization and credit voiding |
+| 2026-04-05 | feat/payout-workflow | PR 3-D | Payout request, failure handler, recurring cron, frozen guard |
+| 2026-04-05 | feat/risk-scoring | PR 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 2026-04-06 | feat/fraud-rules-r1-r7 | PR 4-B/4-C (combined) | All fraud rules R1–R7, KYC hashing, shadow review status mapping, 15-min fraud scan cron |
