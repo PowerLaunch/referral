@@ -388,6 +388,9 @@ export async function runR5ZeroGameplay(): Promise<number> {
   let flaggedCount = 0
 
   for (const referral of oldPendingReferrals) {
+    // gameplay_sessions has a UNIQUE constraint on user_id (PR 2-B migration).
+    // There is exactly one row per user — the table tracks cumulative minutes,
+    // not individual sessions. The .limit(1) is defensive, not selective.
     // Check referee gameplay
     const { data: sessions, error: gameplayError } = await adminClient
       .from('gameplay_sessions')
