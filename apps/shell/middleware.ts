@@ -9,7 +9,7 @@ const refRateLimit = new Map<string, { count: number; windowStart: number }>()
 
 export async function middleware(request: NextRequest) {
   // Refresh session and get response with updated cookies
-  const { response: supabaseResponse, user } = await updateSession(request)
+  const { response: supabaseResponse, user, supabase } = await updateSession(request)
 
   // --- Rate limit for /ref/* referral redirect routes ---
   // Prevents bot-driven click flooding. 10 requests per IP per 60 seconds.
@@ -85,9 +85,9 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/api/cron/')
 
   if (!skipFraudCheck) {
-    // Query profiles for fraud status
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = await createClient()
+    // Query profiles for fraud status using the same Supabase client
+    // from updateSession — shares cookie management, prevents session
+    // desynchronization from a second independent client.
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
