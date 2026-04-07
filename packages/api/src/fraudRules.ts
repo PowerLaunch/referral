@@ -317,10 +317,17 @@ export async function runR4CashoutSpike(): Promise<number> {
 
     if (wasInserted) {
       // Pause cashouts
-      await adminClient
+      const { error: circuitBreakerError } = await adminClient
         .from('game_config')
         .update({ cashouts_paused: true })
         .limit(1)
+
+      if (circuitBreakerError) {
+        console.error('CRITICAL: R4 circuit breaker failed to activate:', circuitBreakerError.message)
+        // Do NOT log to admin_audit_logs as triggered — the breaker is NOT active.
+        // Return 0 to signal the rule did not complete successfully.
+        return 0
+      }
 
       // Log circuit breaker trigger
       // targetId is null for global circuit breaker events — no specific user target.
@@ -370,11 +377,11 @@ export async function runR5ZeroGameplay(): Promise<number> {
 
   for (const referral of oldPendingReferrals) {
     // Check referee gameplay
-    const { data: gameplay, error: gameplayError } = await adminClient
+    const { data: sessions, error: gameplayError } = await adminClient
       .from('gameplay_sessions')
       .select('total_minutes')
       .eq('user_id', referral.referee_id)
-      .maybeSingle()
+      .limit(1)
 
     if (gameplayError) {
       console.error(
@@ -384,6 +391,7 @@ export async function runR5ZeroGameplay(): Promise<number> {
       continue
     }
 
+    const gameplay = sessions && sessions.length > 0 ? sessions[0] : null
     const totalMinutes = gameplay?.total_minutes ?? 0
 
     if (totalMinutes === 0) {
