@@ -1,35 +1,31 @@
 # REFERRAL APP — CURSOR RULES
-# Read this file, SPEC.md, and PROGRESS.md before every task.
+# This file exists for backward compatibility.
+# Primary instructions are in CLAUDE.md at the repo root.
+# If using the Claude Code extension, CLAUDE.md takes priority.
+# If using Cursor's built-in agent, this file applies.
 
-## Project structure
-referral/
-├── apps/
-│   ├── shell/     ← Next.js 15 shell game (Tusok-Tusok Tycoon)
-│   └── game-1/    ← future games added here, backend untouched
-├── packages/
-│   └── api/       ← shared backend: referral engine, payments, fraud, auth
-├── docs/          ← scope and PR plan documents
-├── SPEC.md        ← full product specification
-├── PROGRESS.md    ← current build status (update after every PR)
-└── .cursorrules   ← this file
+Read CLAUDE.md for all project rules, architectural constraints, and workflow instructions.
+Read PROGRESS.md before every task.
 
-## Non-negotiable rules
-- Always read PROGRESS.md at the start of any session before doing anything else
-- Always use TypeScript strict mode
-- Never hardcode secrets — use environment variables only
-- Never put Supabase service role key on the client side (SUPABASE_SERVICE_ROLE_KEY is server-only)
-- Always use the App Router (never pages/)
-- All API routes live in apps/shell/app/api/
-- Shared backend logic lives in packages/api/src/
-- The game (apps/shell) must NEVER import directly from packages/api — use API routes only
-- All terminal work, git operations, and PR creation are handled by the agent — zero manual steps
-- SQL migrations run via Supabase CLI (supabase db push) — never ask the user to run SQL manually
-- After every PR merge, update PROGRESS.md: set Last Completed PR, Next PR, update PR log row to MERGED with date, append to Session Log
+## Quick Reference (see CLAUDE.md for full details)
 
-## Cursor prompt format
+- TypeScript strict. No `any`, no `ts-ignore`.
+- awardCredits()/deductCredits() are the ONLY credit modification paths.
+- No SQL triggers. Application-layer logic only.
+- SECURITY DEFINER → SET search_path = public.
+- Append-only tables → REVOKE UPDATE/DELETE from all roles.
+- Cron auth: Authorization: Bearer {CRON_SECRET} (not x-cron-secret).
+- Atomic DB ops: single RPC/transaction, never sequential JS calls.
+- Migrations: manual Supabase SQL editor, never supabase db push. Use CAST() not ::date.
+- Admin client for writes, cookie-based client for reads.
+- Game never imports from packages/api — API routes only.
+- Package: @referral/api via transpilePackages.
+
+## Prompt Format
+
 Read .cursorrules first. [This is a code change task only — do not investigate.]
 On branch [branch-name], [describe the change]:
-1. [Specific change — file, location, what to do]
+1. [Specific change]
 2. [Specific change]
 [Constraints]
 Commit and push to [branch-name] and open a PR.
