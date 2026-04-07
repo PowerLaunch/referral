@@ -39,7 +39,9 @@ export async function getUserRiskScore(userId: string): Promise<number> {
 
 /**
  * Get risk category from numeric risk score.
- * Spec Section 6.4: LOW 0-30, MEDIUM 31-60, HIGH 61-100, CRITICAL 100+
+ * Score ranges per spec Section 6.4:
+ * LOW: 0-30, MEDIUM: 31-60, HIGH: 61-99, CRITICAL: 100+
+ * Note: score of exactly 100 is CRITICAL, not HIGH.
  * @param score - Numeric risk score
  * @returns Risk category
  */
@@ -50,7 +52,6 @@ export function getRiskCategory(
   if (score <= 60) return 'MEDIUM'
   if (score < 100) return 'HIGH'
   return 'CRITICAL'
-  // Note: score of exactly 100 is CRITICAL per spec Section 6.4 (100+ = CRITICAL).
 }
 
 /**

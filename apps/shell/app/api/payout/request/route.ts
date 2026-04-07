@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
 import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
+import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -306,10 +307,11 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Step 6 — Return success
+    const rawStatus = isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING',
+      status: getDisplayPayoutStatus(rawStatus, 'ACTIVE'),
     })
   } catch (error) {
     console.error('Payout request error:', error)
