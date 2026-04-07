@@ -140,6 +140,7 @@ export async function handleChargeback(
         status: 'BANNED',
       })
       .eq('id', userId)
+      .not('trust_level', 'eq', 'BANNED')
 
     // b) Insert CRITICAL fraud flag
     const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
@@ -205,6 +206,7 @@ export async function handleChargeback(
   } else {
     // FIRST CHARGEBACK → REVIEW_HOLD + FREEZE
     // a) Update profiles: SUSPICIOUS + REVIEW_HOLD
+    // Guard: never downgrade a BANNED account. Same pattern as R7 in fraudRules.ts.
     await adminClient
       .from('profiles')
       .update({
@@ -212,6 +214,8 @@ export async function handleChargeback(
         status: 'REVIEW_HOLD',
       })
       .eq('id', userId)
+      .not('trust_level', 'eq', 'BANNED')
+      .not('status', 'eq', 'BANNED')
 
     // b) Insert CRITICAL fraud flag
     const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
