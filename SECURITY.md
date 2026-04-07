@@ -107,11 +107,12 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - Admin-toggled in Phase 7
 
 ### 3.6 Fraud Scoring
-- Risk score = sum of fraud_flag severity points (CRITICAL: 100, WARNING: 30, INFO: 10)
+- Risk score = sum of fraud_flag severity points (CRITICAL: 50, WARNING: 30, INFO: 10)
 - **CRITICAL (100+)**: Skip referral confirmation entirely
 - **HIGH (61-99)**: Skip confirmation, leave PENDING for manual review (no tracking flag inserted to avoid score inflation)
 - **MEDIUM (31-60)**: Allow confirmation
 - **LOW (0-30)**: Allow confirmation
+- Note: A single CRITICAL flag (50 points) yields MEDIUM category. Two CRITICAL flags or one CRITICAL + one WARNING (80 points) yields HIGH. The CRITICAL category (100+) requires multiple flags, ensuring no single rule instantly blocks confirmation without corroboration.
 
 ### 3.7 Credit Voiding
 - CRITICAL fraud flags auto-void all PENDING referrals (both as referrer and referee)
