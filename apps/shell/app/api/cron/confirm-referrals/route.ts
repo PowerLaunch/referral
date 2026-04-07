@@ -232,8 +232,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
       // d) Check fraud score (PR 4-D)
       // Get risk score for referee. CRITICAL (100+) and HIGH (61-99) referrals
-      // stay PENDING and are re-checked on next cron run. If flags are resolved,
-      // score drops and confirmation proceeds.
+      // stay PENDING and are re-checked on next cron run. When an admin resolves
+      // flags (is_resolved = true in Phase 7), score drops and confirmation proceeds.
       const riskScore = await getUserRiskScore(referral.referee_id)
       const riskCategory = getRiskCategory(riskScore)
 

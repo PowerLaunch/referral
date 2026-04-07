@@ -2,7 +2,8 @@ import { getAdminClient } from './credits'
 
 // Risk score is always computed fresh from fraud_flags — never cached or stored
 // as a column. This ensures score reflects current state after admin resolutions.
-// All flags count toward score regardless of is_resolved status.
+// Only unresolved flags count toward score. Resolved flags (is_resolved = true)
+// are excluded so admin flag resolution in Phase 7 can unblock referral confirmations.
 
 // Called by confirmation cron fraud check (PR 4-D) and admin dashboard (PR 7-C)
 /**
@@ -16,6 +17,7 @@ export async function getUserRiskScore(userId: string): Promise<number> {
     .from('fraud_flags')
     .select('severity')
     .eq('user_id', userId)
+    .eq('is_resolved', false)
 
   if (error) {
     console.error(`Risk score query failed for user ${userId}:`, error.message)
