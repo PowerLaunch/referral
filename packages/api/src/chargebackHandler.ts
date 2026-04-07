@@ -5,6 +5,7 @@
 import { getAdminClient } from './credits'
 import { freezeReferralsForUser } from './maturityCheckpoint'
 import { logAdminAction } from './riskScore'
+import { onCriticalFraudFlag } from './fraudRules'
 
 /**
  * Freeze referrals where the given user is the REFEREE (not the referrer).
@@ -178,6 +179,12 @@ export async function handleChargeback(
       `Chargeback #${chargebackNumber} — permanent ban`
     )
     await freezeRefereeReferrals(userId, `Chargeback #${chargebackNumber} — referee-side freeze`)
+
+    // Void all pending referrals permanently. BANNED users' referrals should
+    // be voided (not just frozen) to prevent accidental unfreeze.
+    // onCriticalFraudFlag calls voidPendingCredits which sets PENDING → VOIDED.
+    // Safe to call after freeze — voiding a frozen referral still works.
+    await onCriticalFraudFlag(userId, 'CHARGEBACK')
 
     // d) Log to admin audit trail
     if (currentStatus !== 'BANNED') {
