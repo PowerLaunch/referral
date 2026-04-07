@@ -304,19 +304,35 @@ export async function runR4CashoutSpike(): Promise<number> {
   const threshold = weeklyHourlyAverage * 3
 
   if (currentHourTotal > threshold) {
+    // Insert the fraud flag (idempotent — may already exist from earlier this UTC day)
     const wasInserted = await insertFraudFlag({
-      userId: null, // Global flag
+      userId: null,
       ruleTriggered: 'R4_CASHOUT_SPIKE',
       severity: 'CRITICAL',
       details: {
         current_hour_total: currentHourTotal,
-        weekly_hourly_average: Math.round(weeklyHourlyAverage),
-        threshold: Math.round(threshold),
+        hourly_average: Math.round(weeklyHourlyAverage),
+        multiplier: Math.round((currentHourTotal / weeklyHourlyAverage) * 10) / 10,
       },
     })
 
-    if (wasInserted) {
-      // Pause cashouts
+    // Activate circuit breaker REGARDLESS of whether flag was newly inserted.
+    // If the flag already exists (wasInserted = false) but cashouts_paused is
+    // still false (previous activation failed), we MUST retry the activation.
+    // Check current state first to avoid unnecessary writes and duplicate audit logs.
+    const { data: config, error: configReadError } = await adminClient
+      .from('game_config')
+      .select('cashouts_paused')
+      .limit(1)
+      .single()
+
+    if (configReadError) {
+      console.error('CRITICAL: R4 cannot read game_config:', configReadError.message)
+      return 0
+    }
+
+    if (config && !config.cashouts_paused) {
+      // Circuit breaker is not active — activate it now
       const { error: circuitBreakerError } = await adminClient
         .from('game_config')
         .update({ cashouts_paused: true })
@@ -324,25 +340,21 @@ export async function runR4CashoutSpike(): Promise<number> {
 
       if (circuitBreakerError) {
         console.error('CRITICAL: R4 circuit breaker failed to activate:', circuitBreakerError.message)
-        // Do NOT log to admin_audit_logs as triggered — the breaker is NOT active.
-        // Return 0 to signal the rule did not complete successfully.
         return 0
       }
 
-      // Log circuit breaker trigger
-      // targetId is null for global circuit breaker events — no specific user target.
       await logAdminAction({
         adminUserId: null,
         action: 'CIRCUIT_BREAKER_TRIGGERED',
-        targetType: 'game_config',
-        targetId: null,
+        targetType: 'system',
+        targetId: 'game_config',
         beforeValue: 'cashouts_paused: false',
         afterValue: 'cashouts_paused: true',
-        reason: `R4: Cashout spike detected (${currentHourTotal} > ${Math.round(threshold)})`,
+        reason: `R4_CASHOUT_SPIKE: ${currentHourTotal} in last hour vs ${Math.round(weeklyHourlyAverage)}/hr average`,
       })
-
-      return 1
     }
+
+    return wasInserted ? 1 : 0
   }
 
   return 0

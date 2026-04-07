@@ -4,6 +4,7 @@ import { getAdminClient } from './credits'
 // as a column. This ensures score reflects current state after admin resolutions.
 // All flags count toward score regardless of is_resolved status.
 
+// Called by confirmation cron fraud check (PR 4-D) and admin dashboard (PR 7-C)
 /**
  * Get risk score for a user by summing severity scores of all fraud flags.
  * Risk score is always computed fresh — never cached or stored as a column.
@@ -37,6 +38,7 @@ export async function getUserRiskScore(userId: string): Promise<number> {
   return total
 }
 
+// Called by confirmation cron fraud check (PR 4-D) and admin cashout review (PR 7-D)
 /**
  * Get risk category from numeric risk score.
  * Score ranges per spec Section 6.4:

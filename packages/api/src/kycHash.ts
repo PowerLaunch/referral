@@ -10,6 +10,7 @@
 import { createHmac } from 'crypto'
 import { getAdminClient } from './credits'
 
+// Called by KYC approval flow (PR 5-C) and admin KYC management (PR 7-F)
 /**
  * Hash a KYC identity document number using HMAC-SHA256 with Vault-stored salt.
  * The salt is read from Supabase Vault via the read_vault_secret() RPC.
