@@ -158,6 +158,6 @@ export const config = {
     // not Supabase session cookies. They must be excluded from the session middleware.
     // Each cron handler validates its own secret independently.
     // Webhook routes (including /api/webhooks/payout-failure) use provider-specific HMAC.
-    '/((?!_next/static|_next/image|favicon.ico|ref/|api/webhooks/|api/cron/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/webhooks/|api/cron/).*)',
   ],
 }

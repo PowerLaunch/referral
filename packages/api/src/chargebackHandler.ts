@@ -7,6 +7,41 @@ import { freezeReferralsForUser } from './maturityCheckpoint'
 import { logAdminAction } from './riskScore'
 
 /**
+ * Freeze referrals where the given user is the REFEREE (not the referrer).
+ * freezeReferralsForUser() only covers referrer_id.
+ * This catches the case where a chargeback user's referral should not
+ * confirm and earn credits for the referrer who referred them.
+ */
+async function freezeRefereeReferrals(
+  userId: string,
+  reason: string
+): Promise<void> {
+  const adminClient = getAdminClient()
+  const { data: refereeReferrals, error } = await adminClient
+    .from('referrals')
+    .select('id')
+    .eq('referee_id', userId)
+    .eq('status', 'PENDING')
+    .eq('lock_timer_frozen', false)
+
+  if (error) {
+    console.error(`Failed to query referee-side referrals for ${userId}:`, error.message)
+    return
+  }
+
+  if (!refereeReferrals || refereeReferrals.length === 0) return
+
+  for (const ref of refereeReferrals) {
+    await adminClient.rpc('freeze_referral', {
+      p_referral_id: ref.id,
+      p_reason: reason,
+    }).catch((err: unknown) => {
+      console.error(`Failed to freeze referee-side referral ${ref.id}:`, err)
+    })
+  }
+}
+
+/**
  * Handle a chargeback dispute for a user.
  * First chargeback: REVIEW_HOLD + freeze. Second chargeback: PERMANENT_BAN.
  * @param userId - User UUID
@@ -53,6 +88,31 @@ export async function handleChargeback(
   const currentTrustLevel = profile?.trust_level || 'CLEAN'
   const currentStatus = profile?.status || 'ACTIVE'
 
+  // Idempotency guard: check if this exact transactionId was already processed.
+  // Payment providers retry webhooks on failure. Without this check, a retry
+  // would see the flag from the first call and escalate to PERMANENT_BAN.
+  const { count: existingForTxn, error: idempotencyError } = await adminClient
+    .from('fraud_flags')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('rule_triggered', 'CHARGEBACK')
+    .contains('details', { transaction_id: transactionId })
+
+  if (idempotencyError) {
+    console.error(
+      `Chargeback idempotency check failed for ${userId}/${transactionId}:`,
+      idempotencyError.message
+    )
+    // Fail safe: continue with normal flow (may double-process, better than skipping)
+  } else if ((existingForTxn ?? 0) > 0) {
+    // Already processed this exact chargeback — return the current state
+    const currentAction = profile?.trust_level === 'BANNED' ? 'PERMANENT_BAN' : 'REVIEW_HOLD'
+    console.log(
+      `Chargeback for transaction ${transactionId} already processed for user ${userId}. Skipping.`
+    )
+    return { action: currentAction as 'REVIEW_HOLD' | 'PERMANENT_BAN' }
+  }
+
   // Step 3: Determine action based on chargeback count
   const isSecondOrMoreChargeback = (priorChargebacks ?? 0) >= 1
 
@@ -86,28 +146,7 @@ export async function handleChargeback(
       userId,
       `Chargeback #${chargebackNumber} — permanent ban`
     )
-
-    // Also freeze referrals where this user is the REFEREE.
-    // freezeReferralsForUser only covers referrer_id.
-    // For chargebacks, we must also prevent the referrer from earning
-    // credits from a disputed referee's subscription payment.
-    const { data: refereeReferrals, error: refereeRefError } = await adminClient
-      .from('referrals')
-      .select('id')
-      .eq('referee_id', userId)
-      .eq('status', 'PENDING')
-      .eq('lock_timer_frozen', false)
-
-    if (!refereeRefError && refereeReferrals && refereeReferrals.length > 0) {
-      for (const ref of refereeReferrals) {
-        await adminClient.rpc('freeze_referral', {
-          p_referral_id: ref.id,
-          p_reason: `Chargeback on referee ${userId} — referee-side freeze`,
-        }).catch((err: unknown) => {
-          console.error(`Failed to freeze referee-side referral ${ref.id}:`, err)
-        })
-      }
-    }
+    await freezeRefereeReferrals(userId, `Chargeback #${chargebackNumber} — referee-side freeze`)
 
     // d) Log to admin audit trail
     if (currentStatus !== 'BANNED') {
@@ -153,28 +192,7 @@ export async function handleChargeback(
       userId,
       'First chargeback — pending admin review'
     )
-
-    // Also freeze referrals where this user is the REFEREE.
-    // freezeReferralsForUser only covers referrer_id.
-    // For chargebacks, we must also prevent the referrer from earning
-    // credits from a disputed referee's subscription payment.
-    const { data: refereeReferrals, error: refereeRefError } = await adminClient
-      .from('referrals')
-      .select('id')
-      .eq('referee_id', userId)
-      .eq('status', 'PENDING')
-      .eq('lock_timer_frozen', false)
-
-    if (!refereeRefError && refereeReferrals && refereeReferrals.length > 0) {
-      for (const ref of refereeReferrals) {
-        await adminClient.rpc('freeze_referral', {
-          p_referral_id: ref.id,
-          p_reason: `Chargeback on referee ${userId} — referee-side freeze`,
-        }).catch((err: unknown) => {
-          console.error(`Failed to freeze referee-side referral ${ref.id}:`, err)
-        })
-      }
-    }
+    await freezeRefereeReferrals(userId, `First chargeback on referee ${userId} — referee-side freeze`)
 
     // d) Log to admin audit trail
     if (currentStatus !== 'REVIEW_HOLD') {
