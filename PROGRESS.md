@@ -191,3 +191,4 @@ Complete these before starting PR 5-A:
 | 2026-04-06 | feat/fraud-rules-r1-r7 | PR 4-B/4-C (combined) | All fraud rules R1–R7, KYC hashing, shadow review status mapping, 15-min fraud scan cron |
 | 2026-04-07 | feat/fraud-rules-r1-r7 | PR #16 merged | feat: Fraud rules R1-R7, KYC hashing, shadow review (PR 4-B/4-C combined) |
 | 2026-04-07 | feat/fraud-middleware | PR 4-D | Fraud middleware, chargeback handler, fraud scoring in confirmation cron, circuit breaker check |
+| 2026-04-07 | feat/fraud-middleware | PR #17 merged | feat: fraud middleware integration (PR 4-D) |
