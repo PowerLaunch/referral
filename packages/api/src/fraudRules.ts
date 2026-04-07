@@ -568,37 +568,26 @@ export async function runGeoMismatch(): Promise<number> {
   for (const [referrerId, refCountries] of byReferrer.entries()) {
     if (refCountries.length < 3) continue // Need 3+ referees to assess
 
-    // Get the referrer's own country from their profile or first referral
-    const { data: referrerProfile } = await adminClient
-      .from('referrals')
-      .select('country_code')
-      .eq('referee_id', referrerId)
-      .not('country_code', 'is', null)
-      .limit(1)
-      .maybeSingle()
+    // Infer referrer's country from the mode (most common) of their
+    // referees' country codes. This works for both organically signed-up
+    // referrers and referred referrers.
+    const countryCounts = new Map<string, number>()
+    for (const c of refCountries) {
+      countryCounts.set(c, (countryCounts.get(c) ?? 0) + 1)
+    }
 
-    // If referrer was never referred themselves, infer country from their
-    // referrals' majority. But the real signal is: are all referees from
-    // a DIFFERENT country than each other or from the referrer?
-    // Simpler approach: check if 3+ referees share a country that differs
-    // from the mode of the referrer's own referrals.
+    // Find the mode (most frequent country)
+    let modeCountry = ''
+    let modeCount = 0
+    for (const [country, count] of countryCounts.entries()) {
+      if (count > modeCount) {
+        modeCountry = country
+        modeCount = count
+      }
+    }
 
-    // Simplest heuristic: if referrer has 3+ referees and the referees'
-    // countries have 3+ distinct values, OR 3+ referees are from a single
-    // country different from the referrer's country, flag.
-
-    // For MVP: flag if 3+ referees have a country_code different from
-    // the most common country_code among this referrer's referees.
-    // This catches farm patterns where one person in country A recruits
-    // accounts from country B.
-
-    // Get referrer's own country (from their profile being a referee)
-    const referrerCountry = referrerProfile?.country_code ?? null
-
-    if (!referrerCountry) continue // Can't compare without referrer's country
-
-    // Count how many referees are from a different country
-    const mismatchCount = refCountries.filter(c => c !== referrerCountry).length
+    // Count referees that differ from the mode
+    const mismatchCount = refCountries.length - modeCount
 
     if (mismatchCount >= 3) {
       const wasInserted = await insertFraudFlag({
@@ -606,7 +595,7 @@ export async function runGeoMismatch(): Promise<number> {
         ruleTriggered: 'R_GEO_MISMATCH',
         severity: 'WARNING',
         details: {
-          referrer_country: referrerCountry,
+          inferred_country: modeCountry,
           mismatch_count: mismatchCount,
           total_referees: refCountries.length,
         },
