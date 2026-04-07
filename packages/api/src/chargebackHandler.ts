@@ -113,6 +113,17 @@ export async function handleChargeback(
     return { action: currentAction as 'REVIEW_HOLD' | 'PERMANENT_BAN' }
   }
 
+  // Secondary idempotency: if user is already BANNED, a chargeback retry
+  // cannot escalate further. Return immediately.
+  // This catches same-day second chargebacks where the flag deduplication
+  // prevented the idempotency guard from finding the transaction_id.
+  if (currentTrustLevel === 'BANNED' && currentStatus === 'BANNED') {
+    console.log(
+      `User ${userId} already BANNED. Chargeback for ${transactionId} is a no-op.`
+    )
+    return { action: 'PERMANENT_BAN' }
+  }
+
   // Step 3: Determine action based on chargeback count
   const isSecondOrMoreChargeback = (priorChargebacks ?? 0) >= 1
 
@@ -130,7 +141,7 @@ export async function handleChargeback(
       .eq('id', userId)
 
     // b) Insert CRITICAL fraud flag
-    await adminClient.from('fraud_flags').insert({
+    const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
       user_id: userId,
       rule_triggered: 'CHARGEBACK',
       severity: 'CRITICAL',
@@ -140,6 +151,26 @@ export async function handleChargeback(
         action: 'PERMANENT_BAN',
       },
     })
+
+    if (flagInsertError) {
+      if (flagInsertError.code === '23505') {
+        // Same-day idempotency index blocked duplicate CHARGEBACK flag.
+        // This is expected when two chargebacks happen on the same UTC day.
+        // The chargeback is still processed (profile updated, referrals frozen).
+        // The idempotency guard at the top handles webhook retries for the
+        // first chargeback; this second one may replay on retry but all
+        // side effects (BANNED status, frozen referrals) are idempotent.
+        console.log(
+          `Chargeback flag for user ${userId} deduplicated (same UTC day). ` +
+          `Transaction ${transactionId} processed without flag storage.`
+        )
+      } else {
+        console.error(
+          `Failed to insert chargeback flag for ${userId}:`,
+          flagInsertError.message
+        )
+      }
+    }
 
     // c) Freeze all pending referrals (where user is referrer OR referee)
     await freezeReferralsForUser(
@@ -176,7 +207,7 @@ export async function handleChargeback(
       .eq('id', userId)
 
     // b) Insert CRITICAL fraud flag
-    await adminClient.from('fraud_flags').insert({
+    const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
       user_id: userId,
       rule_triggered: 'CHARGEBACK',
       severity: 'CRITICAL',
@@ -186,6 +217,26 @@ export async function handleChargeback(
         action: 'REVIEW_HOLD',
       },
     })
+
+    if (flagInsertError) {
+      if (flagInsertError.code === '23505') {
+        // Same-day idempotency index blocked duplicate CHARGEBACK flag.
+        // This is expected when two chargebacks happen on the same UTC day.
+        // The chargeback is still processed (profile updated, referrals frozen).
+        // The idempotency guard at the top handles webhook retries for the
+        // first chargeback; this second one may replay on retry but all
+        // side effects (BANNED status, frozen referrals) are idempotent.
+        console.log(
+          `Chargeback flag for user ${userId} deduplicated (same UTC day). ` +
+          `Transaction ${transactionId} processed without flag storage.`
+        )
+      } else {
+        console.error(
+          `Failed to insert chargeback flag for ${userId}:`,
+          flagInsertError.message
+        )
+      }
+    }
 
     // c) Freeze all pending referrals
     await freezeReferralsForUser(
