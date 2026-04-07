@@ -347,7 +347,7 @@ export async function runR4CashoutSpike(): Promise<number> {
         adminUserId: null,
         action: 'CIRCUIT_BREAKER_TRIGGERED',
         targetType: 'system',
-        targetId: 'game_config',
+        targetId: null,
         beforeValue: 'cashouts_paused: false',
         afterValue: 'cashouts_paused: true',
         reason: `R4_CASHOUT_SPIKE: ${currentHourTotal} in last hour vs ${Math.round(weeklyHourlyAverage)}/hr average`,

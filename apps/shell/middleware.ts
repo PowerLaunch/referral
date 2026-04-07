@@ -37,18 +37,20 @@ export async function middleware(request: NextRequest) {
   }
 
   // PR 4-D: Fraud middleware — Query profiles table for trust_level and status.
-  // Performance: This DB query runs ONLY for authenticated users on protected routes.
-  // It does NOT run for: static assets, webhooks, crons, or public paths.
+  // Performance: This DB query runs for ALL authenticated routes EXCEPT webhooks/crons.
   // The cookie-based Supabase client is Edge Runtime compatible (no Node.js crypto).
   //
   // Scale note: at >1000 users, consider caching trust_level in a short-TTL
   // cookie (5 min) refreshed on trust_level change.
 
-  // Skip DB query for API routes (crons, webhooks) — they authenticate via Bearer token
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
-  const isStaticAsset = request.nextUrl.pathname.startsWith('/_next/')
+  // Skip fraud check only for routes that don't use Supabase session auth
+  // (webhooks and crons use their own auth: HMAC signatures or Bearer tokens)
+  const skipFraudCheck =
+    request.nextUrl.pathname.startsWith('/_next/') ||
+    request.nextUrl.pathname.startsWith('/api/webhooks/') ||
+    request.nextUrl.pathname.startsWith('/api/cron/')
 
-  if (!isApiRoute && !isStaticAsset) {
+  if (!skipFraudCheck) {
     // Query profiles for fraud status
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
@@ -94,12 +96,16 @@ export async function middleware(request: NextRequest) {
         requestHeaders.set('x-user-review-hold', 'true')
       }
 
-      // Pass modified headers to route handlers
-      return NextResponse.next({
+      // Pass modified headers to route handlers, preserving session cookies
+      const nextResponse = NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       })
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        nextResponse.cookies.set(cookie)
+      })
+      return nextResponse
     }
   }
 
