@@ -8,20 +8,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 const refRateLimit = new Map<string, { count: number; windowStart: number }>()
 
 export async function middleware(request: NextRequest) {
-  // Refresh session and get response with updated cookies
-  const { response: supabaseResponse, user, supabase } = await updateSession(request)
-
   // --- Rate limit for /ref/* referral redirect routes ---
-  // Prevents bot-driven click flooding. 10 requests per IP per 60 seconds.
-  // Uses module-level Map (persists within a single serverless instance).
-  // Memory is bounded: stale entries cleaned on every request.
+  // Checked BEFORE updateSession to avoid hitting Supabase auth API
+  // on every bot request. The rate limiter only needs the IP address.
   if (request.nextUrl.pathname.startsWith('/ref/')) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const now = Date.now()
-    const windowMs = 60_000 // 1 minute
+    const windowMs = 60_000
     const maxRequests = 10
 
-    // Clean stale entries (older than windowMs)
     for (const [key, entry] of refRateLimit.entries()) {
       if (now - entry.windowStart > windowMs) {
         refRateLimit.delete(key)
@@ -38,6 +33,9 @@ export async function middleware(request: NextRequest) {
       refRateLimit.set(ip, { count: 1, windowStart: now })
     }
   }
+
+  // Refresh session and get response with updated cookies
+  const { response: supabaseResponse, user, supabase } = await updateSession(request)
 
   // Helper to preserve session cookies on redirects
   function redirectWithCookies(url: string): NextResponse {
