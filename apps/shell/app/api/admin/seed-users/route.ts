@@ -38,6 +38,10 @@ export async function GET(): Promise<Response> {
   // Fetch profile data and subscription status for each seed user
   const profileIds = (seedUsers ?? []).map((s) => s.profile_id as string)
 
+  if (profileIds.length === 0) {
+    return Response.json({ users: [] })
+  }
+
   const [profilesResult, subsResult] = await Promise.all([
     admin.from('profiles').select('id, email, referral_code').in('id', profileIds),
     admin.from('subscriptions').select('user_id, status').in('user_id', profileIds),

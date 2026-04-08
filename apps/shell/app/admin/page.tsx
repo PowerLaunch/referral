@@ -11,6 +11,7 @@ export default async function AdminPulsePage() {
   // Parallel queries for dashboard data
   const [
     activeSubsResult,
+    allSubsResult,
     pendingPayoutsResult,
     totalUsersResult,
     creditTxResult,
@@ -19,11 +20,15 @@ export default async function AdminPulsePage() {
     gameConfigResult,
     cronHealthResult,
   ] = await Promise.all([
-    // Active subscribers count
+    // Active subscribers count (for MRR)
     admin
       .from('subscriptions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'active'),
+    // All subscriptions ever (for all-time revenue proxy)
+    admin
+      .from('subscriptions')
+      .select('*', { count: 'exact', head: true }),
     // Pending payouts
     admin
       .from('payouts')
@@ -64,6 +69,7 @@ export default async function AdminPulsePage() {
   ])
 
   const activeSubscribers = activeSubsResult.count ?? 0
+  const allSubscriptions = allSubsResult.count ?? 0
   const pendingPayouts = pendingPayoutsResult.data ?? []
   const totalUsers = totalUsersResult.count ?? 0
   const creditTx = creditTxResult.data ?? []
@@ -72,13 +78,13 @@ export default async function AdminPulsePage() {
   const gameConfig = gameConfigResult.data
   const cronHealthData = cronHealthResult.data ?? []
 
-  // Revenue calculations
-  // Subscription revenue proxy: active subs * $5
-  const subscriptionRevenue = activeSubscribers * 500 // in cents
+  // Revenue calculations (all-time, apples-to-apples comparison)
+  // Placeholder: replace with SUM of actual payment_events once payment integration exists.
+  const subscriptionRevenue = allSubscriptions * 500 // all-time: every sub paid $5 at least once
   const totalPayoutsAmount = completedPayouts.reduce((sum, p) => sum + (p.amount as number), 0)
   const netRevenue = subscriptionRevenue - totalPayoutsAmount
   const totalLiability = creditTx.reduce((sum, tx) => sum + (tx.amount as number), 0) - totalPayoutsAmount
-  const mrr = activeSubscribers * 500 // $5 per active sub
+  const mrr = activeSubscribers * 500 // $5 per currently active sub
 
   const pendingPayoutCount = pendingPayouts.length
   const pendingPayoutAmount = pendingPayouts.reduce((sum, p) => sum + (p.amount as number), 0)
@@ -90,21 +96,21 @@ export default async function AdminPulsePage() {
       {/* Revenue Dashboard */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          label="Net Revenue"
+          label="Net Revenue (All-Time)"
           value={`$${(netRevenue / 100).toFixed(2)}`}
-          sub="Subscriptions minus payouts"
-        />
-        <MetricCard
-          label="Total Liability"
-          value={`$${(totalLiability / 100).toFixed(2)}`}
-          sub="Credits awarded minus paid out"
+          sub={`$${(subscriptionRevenue / 100).toFixed(2)} subs - $${(totalPayoutsAmount / 100).toFixed(2)} payouts`}
         />
         <MetricCard
           label="MRR"
           value={`$${(mrr / 100).toFixed(2)}`}
           sub={`${activeSubscribers} active subs x $5`}
         />
-        <MetricCard label="Churn Rate" value="—" sub="Pending subscription history" />
+        <MetricCard
+          label="Total Liability"
+          value={`$${(totalLiability / 100).toFixed(2)}`}
+          sub="Credits awarded minus paid out"
+        />
+        <MetricCard label="Total Registered" value={String(totalUsers)} sub="All-time signups" />
       </div>
 
       {/* System Health */}
