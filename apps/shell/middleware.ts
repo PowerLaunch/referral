@@ -34,6 +34,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // /ref/ paths: rate limiting already ran above. Skip Supabase session auth
+  // for referral links — they don't need authentication, just the rate limit.
+  if (request.nextUrl.pathname.startsWith('/ref/')) {
+    return NextResponse.next()
+  }
+
   // Refresh session and get response with updated cookies
   const { response: supabaseResponse, user, supabase } = await updateSession(request)
 
