@@ -75,7 +75,7 @@ BEGIN
     RETURNING total_minutes, session_count INTO v_total_minutes, v_session_count;
   END IF;
 
-  RETURN jsonb_build_object('ok', true, 'total_minutes', v_total_minutes);
+  RETURN jsonb_build_object('ok', true, 'total_minutes', v_total_minutes, 'session_count', v_session_count);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
@@ -135,7 +135,7 @@ BEGIN
     RETURNING total_minutes, session_count INTO v_total_minutes, v_session_count;
   END IF;
 
-  RETURN jsonb_build_object('ok', true, 'total_minutes', COALESCE(v_total_minutes, 0));
+  RETURN jsonb_build_object('ok', true, 'total_minutes', COALESCE(v_total_minutes, 0), 'session_count', v_session_count);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
