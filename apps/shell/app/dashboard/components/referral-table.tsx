@@ -1,5 +1,6 @@
 import { getDisplayReferralStatus } from '@referral/api/statusDisplay'
 import { Pause } from 'lucide-react'
+import { formatDate } from '../utils'
 
 interface ReferralRow {
   id: string
@@ -13,16 +14,6 @@ interface ReferralRow {
 interface ReferralTableProps {
   referrals: ReferralRow[]
   refereeEmails: Record<string, string>
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 export function ReferralTable({ referrals, refereeEmails }: ReferralTableProps) {
@@ -70,7 +61,7 @@ export function ReferralTable({ referrals, refereeEmails }: ReferralTableProps) 
                     {displayStatus}
                   </td>
                   <td className="py-3 pr-4 text-muted-foreground">
-                    {formatDate(ref.payout_eligible_at)}
+                    {ref.payout_eligible_at ? formatDate(ref.payout_eligible_at) : '—'}
                   </td>
                   <td className="py-3">
                     {ref.lock_timer_frozen && (

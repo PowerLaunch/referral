@@ -128,7 +128,7 @@ export default async function DashboardPage() {
       {/* Metrics Bar */}
       <MetricsBar
         totalEarned={totalEarned}
-        pendingRewards={cashBalance}
+        pendingRewards={pendingReferrals.length * 200}
         totalReferrals={totalReferrals}
         confirmedReferrals={confirmedReferrals}
         activeRecurring={activeRecurring}

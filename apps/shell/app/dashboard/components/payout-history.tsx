@@ -1,4 +1,5 @@
 import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
+import { formatDate } from '../utils'
 
 interface PayoutRow {
   id: string
@@ -20,14 +21,6 @@ const ERROR_CODE_MAP: Record<string, string> = {
   provider_unavailable: 'Provider unavailable',
   account_closed: 'Account closed',
   invalid_routing: 'Invalid routing number',
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 function formatMethod(method: string): string {

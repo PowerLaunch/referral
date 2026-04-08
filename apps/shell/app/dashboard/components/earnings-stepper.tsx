@@ -55,17 +55,15 @@ export function EarningsStepper({
     <div className="rounded-lg border border-border bg-card p-6">
       <h2 className="mb-4 text-lg font-semibold">Earnings Progress</h2>
 
-      {/* 5-step stepper */}
+      {/* 4-step stepper */}
       <div className="flex items-start justify-between gap-2 overflow-x-auto">
-        <StepIndicator step={1} label="Link Clicked" count={totalReferrals} active />
+        <StepIndicator step={1} label="Referral Sent" count={totalReferrals} active />
         <div className="mt-5 flex-1 border-t border-border" />
-        <StepIndicator step={2} label="Account Created" count={totalReferrals} active={totalReferrals > 0} />
+        <StepIndicator step={2} label="Subscribed" count={subscribedReferrals} active={totalReferrals > 0} />
         <div className="mt-5 flex-1 border-t border-border" />
-        <StepIndicator step={3} label="Subscribed" count={subscribedReferrals} active={totalReferrals > 0} />
+        <StepIndicator step={3} label="Lock Period" count={pendingReferrals.length} active={subscribedReferrals > 0} />
         <div className="mt-5 flex-1 border-t border-border" />
-        <StepIndicator step={4} label="Lock Period" count={pendingReferrals.length} active={subscribedReferrals > 0} />
-        <div className="mt-5 flex-1 border-t border-border" />
-        <StepIndicator step={5} label="Payout Ready" count={confirmedReferrals} active={pendingReferrals.length > 0} />
+        <StepIndicator step={4} label="Payout Ready" count={confirmedReferrals} active={pendingReferrals.length > 0} />
       </div>
 
       {/* Lock period details for PENDING referrals */}

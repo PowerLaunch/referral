@@ -1,4 +1,5 @@
 import { AlertCircle } from 'lucide-react'
+import { formatDate } from '../utils'
 
 interface DisputeRow {
   id: string
@@ -9,14 +10,6 @@ interface DisputeRow {
 
 interface DisputesSectionProps {
   disputes: DisputeRow[]
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
 }
 
 export function DisputesSection({ disputes }: DisputesSectionProps) {
