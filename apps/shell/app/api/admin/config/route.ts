@@ -8,7 +8,7 @@ export async function GET(): Promise<Response> {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Not Found' }, { status: 404 })
   }
 
   const { data: profile } = await supabase
@@ -18,7 +18,7 @@ export async function GET(): Promise<Response> {
     .single()
 
   if (!profile?.is_admin) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Not Found' }, { status: 404 })
   }
 
   const admin = createAdminClient()

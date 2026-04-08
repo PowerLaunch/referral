@@ -9,7 +9,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Not Found' }, { status: 404 })
   }
 
   const { data: profile } = await supabase
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     .single()
 
   if (!profile?.is_admin) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Not Found' }, { status: 404 })
   }
 
   const searchParams = request.nextUrl.searchParams
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     .from('admin_audit_logs')
     .select('id, admin_user_id, action, target_type, target_id, before_value, after_value, reason, details, created_at')
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit)
+    .range(offset, offset + limit - 1)
 
   if (error) {
     return Response.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
