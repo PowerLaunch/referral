@@ -158,6 +158,9 @@ Complete these before starting PR 5-A:
 | 4-B | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
 | 4-C | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
 | 4-D | feat/fraud-middleware | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
+| 7-A | feat/admin-foundation | IN_PROGRESS | 2026-04-08 | Admin auth guard, layout, sidebar (combined into PR #22) |
+| 7-B | feat/admin-foundation | IN_PROGRESS | 2026-04-08 | Admin pulse dashboard, kill switches, revenue metrics (combined into PR #22) |
+| 7-I | feat/admin-foundation | IN_PROGRESS | 2026-04-08 | Audit log viewer, config editor, seed users (combined into PR #22) |
 
 ---
 

@@ -87,6 +87,20 @@ export async function POST(request: Request): Promise<Response> {
 
     // Step 3 — Guards
 
+    // Guard 0 — Kill switch: cashouts_paused
+    const { data: gameConfig } = await adminClient
+      .from('game_config')
+      .select('cashouts_paused')
+      .limit(1)
+      .single()
+
+    if (gameConfig?.cashouts_paused) {
+      return Response.json(
+        { error: 'Payouts are temporarily paused. Please try again later.' },
+        { status: 503 }
+      )
+    }
+
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')

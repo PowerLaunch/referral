@@ -25,6 +25,7 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-07 | PR 4-D: Rate limit on /ref/[CODE] | 10 req/IP/min prevents bot click flooding | middleware.ts |
 | 2026-04-07 | PR 4-D: Referee-side referral freeze on chargeback | BugBot catch — chargeback user as referee was not having their referral frozen | packages/api/src/chargebackHandler.ts |
 | 2026-04-07 | First referral honeymoon window (14-day cooldown after first referral) | Breaks instant mass-invite farming pattern | apps/shell/app/auth/callback/route.ts |
+| 2026-04-08 | Admin foundation (PR #22 feat/admin-foundation) combines 7-A, 7-B, 7-I plus seed users, kill switch, revenue dashboard, fraud alerts feed, config editor, and audit log | Remaining admin sub-pages (detailed user management, cashout review, fraud clusters, KYC, influencers, disputes) will be separate follow-up PRs | admin/*, api/admin/*, migration 20260408000004, recurring-payouts/route.ts, payout/request/route.ts |
 
 ---
 
