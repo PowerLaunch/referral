@@ -6,7 +6,8 @@ export function ReferralCalculator() {
   const [referrals, setReferrals] = useState(5)
 
   const oneTime = referrals * 2
-  const recurring = referrals
+  const recurringCapped = Math.min(referrals, 15)
+  const recurring = recurringCapped * 1
 
   return (
     <div className="w-full rounded-lg border border-border bg-card p-6">
@@ -40,6 +41,9 @@ export function ReferralCalculator() {
         <div className="text-center">
           <p className="text-2xl font-bold">${recurring}/mo</p>
           <p className="text-sm text-muted-foreground">Recurring monthly</p>
+          {referrals > 15 && (
+            <p className="mt-1 text-xs text-muted-foreground">Recurring capped at $15/mo</p>
+          )}
         </div>
       </div>
 

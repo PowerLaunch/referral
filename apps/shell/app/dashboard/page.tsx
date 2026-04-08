@@ -31,6 +31,7 @@ export default async function DashboardPage() {
     payoutsResult,
     gameConfigResult,
     disputesResult,
+    creditTxResult,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -61,6 +62,12 @@ export default async function DashboardPage() {
       .select('id, status, created_at, resolved_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('credit_transactions')
+      .select('amount, type')
+      .eq('user_id', user.id)
+      .eq('type', 'CASH_BALANCE')
+      .gt('amount', 0),
   ])
 
   const profile = profileResult.data
@@ -69,13 +76,13 @@ export default async function DashboardPage() {
   const payouts = payoutsResult.data ?? []
   const gameConfig = gameConfigResult.data
   const disputes = disputesResult.data ?? []
+  const creditTx = creditTxResult.data ?? []
 
   // Compute metrics
   const cashBalance =
     credits.find((c) => c.type === 'CASH_BALANCE')?.amount ?? 0
-  const totalEarned = payouts
-    .filter((p) => p.status === 'COMPLETED')
-    .reduce((sum, p) => sum + p.amount, 0)
+  // Total earned = sum of all positive CASH_BALANCE credit_transactions (actual earnings)
+  const totalEarned = creditTx.reduce((sum, tx) => sum + tx.amount, 0)
   const confirmedReferrals = referrals.filter((r) => r.status === 'CONFIRMED').length
   const pendingReferrals = referrals.filter((r) => r.status === 'PENDING')
   const totalReferrals = referrals.length

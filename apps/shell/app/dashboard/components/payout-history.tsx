@@ -79,7 +79,7 @@ export function PayoutHistory({ payouts, userStatus }: PayoutHistoryProps) {
                       : 'text-blue-600'
 
               const failedReason =
-                payout.status === 'FAILED'
+                payout.status === 'FAILED' && displayStatus === 'Failed'
                   ? (payout.provider_error_code && ERROR_CODE_MAP[payout.provider_error_code]) ||
                     'Processing error — please try again'
                   : null

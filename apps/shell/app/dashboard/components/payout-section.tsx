@@ -27,7 +27,7 @@ interface PayoutSectionProps {
 export function PayoutSection({
   cashBalance,
   kycVerified,
-  userStatus: _userStatus,
+  userStatus,
 }: PayoutSectionProps) {
   const [selectedMethod, setSelectedMethod] = useState<string>('gcash')
   const [amount, setAmount] = useState<string>('')
@@ -71,6 +71,24 @@ export function PayoutSection({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const payoutBlocked =
+    userStatus === 'REVIEW_HOLD' || userStatus === 'FROZEN' || userStatus === 'BANNED'
+
+  if (payoutBlocked) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-6">
+        <h2 className="mb-4 text-lg font-semibold">Request Payout</h2>
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground">Cashout-eligible balance</p>
+          <p className="text-2xl font-bold">${(cashBalance / 100).toFixed(2)}</p>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Payouts are temporarily unavailable while your account is being verified.
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -23,6 +23,32 @@ export async function getObfuscatedRefereeEmails(
 ): Promise<Record<string, string>> {
   if (refereeIds.length === 0) return {}
 
+  // Auth check: verify caller is authenticated
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return {}
+
+  // Verify caller owns these referrals: all refereeIds must belong to
+  // referrals where the current user is the referrer.
+  const { data: ownedReferrals, error: ownershipError } = await supabase
+    .from('referrals')
+    .select('referee_id')
+    .eq('referrer_id', user.id)
+    .in('referee_id', refereeIds)
+
+  if (ownershipError) {
+    console.error('Failed to verify referral ownership:', ownershipError.message)
+    return {}
+  }
+
+  const ownedRefereeIds = new Set((ownedReferrals ?? []).map((r) => r.referee_id))
+  const authorizedIds = refereeIds.filter((id) => ownedRefereeIds.has(id))
+
+  if (authorizedIds.length === 0) return {}
+
   const adminClient = createAdminClient()
   const result: Record<string, string> = {}
 
@@ -30,7 +56,7 @@ export async function getObfuscatedRefereeEmails(
   const { data: profiles, error } = await adminClient
     .from('profiles')
     .select('id, email')
-    .in('id', refereeIds)
+    .in('id', authorizedIds)
 
   if (error) {
     console.error('Failed to fetch referee emails:', error.message)

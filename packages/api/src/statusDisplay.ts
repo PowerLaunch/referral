@@ -77,6 +77,8 @@ export function getDisplayPayoutStatus(
       return 'Completed'
     case 'FAILED':
       return 'Failed'
+    case 'VOIDED':
+      return 'Cancelled'
     default:
       return 'Processing' // Fallback for unknown status
   }
