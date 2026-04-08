@@ -193,3 +193,4 @@ Complete these before starting PR 5-A:
 | 2026-04-07 | feat/fraud-middleware | PR 4-D | Fraud middleware, chargeback handler, fraud scoring in confirmation cron, circuit breaker check |
 | 2026-04-07 | feat/fraud-middleware | PR #17 merged | feat: fraud middleware integration (PR 4-D) |
 | 2026-04-07 | chore/claude-code-config | PR #18 merged | chore: add CLAUDE.md and update .cursorrules |
+| 2026-04-08 | fix/referral-honeymoon | PR #19 merged | feat: 14-day honeymoon cooldown after first referral |
