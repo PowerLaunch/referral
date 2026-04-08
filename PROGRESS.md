@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 4 — Fraud & Risk Engine (in progress)
-**Last updated:** 2026-04-07
-**Last Completed PR:** 4-D (feat/fraud-middleware)
-**Next PR:** 5-A (feat/onramp)
-**Overall Progress:** 15 / 35 PRs complete
+**Phase:** Phase 6 — User Dashboard (complete)
+**Last updated:** 2026-04-08
+**Last Completed PR:** 6-E (feat/user-dashboard, combined 6-A through 6-E)
+**Next PR:** 7-A (feat/admin-auth)
+**Overall Progress:** 20 / 35 PRs complete
 
 ---
 
@@ -158,6 +158,11 @@ Complete these before starting PR 5-A:
 | 4-B | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
 | 4-C | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
 | 4-D | feat/fraud-middleware | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
+| 6-A | feat/user-dashboard | COMPLETE | 2026-04-08 | Earnings progress stepper & metrics bar (combined into 6-A–6-E) |
+| 6-B | feat/user-dashboard | COMPLETE | 2026-04-08 | Payout section with method selector, fee transparency, history |
+| 6-C | feat/user-dashboard | COMPLETE | 2026-04-08 | Share tools: referral link copy, WhatsApp, Telegram deep links |
+| 6-D | feat/user-dashboard | COMPLETE | 2026-04-08 | Dispute form + disputes table migration |
+| 6-E | feat/user-dashboard | COMPLETE | 2026-04-08 | Landing page referral earnings calculator |
 
 ---
 
@@ -194,3 +199,4 @@ Complete these before starting PR 5-A:
 | 2026-04-07 | feat/fraud-middleware | PR #17 merged | feat: fraud middleware integration (PR 4-D) |
 | 2026-04-07 | chore/claude-code-config | PR #18 merged | chore: add CLAUDE.md and update .cursorrules |
 | 2026-04-08 | fix/referral-honeymoon | PR #19 merged | feat: 14-day honeymoon cooldown after first referral |
+| 2026-04-08 | feat/user-dashboard | PR 6-A–6-E | Combined user dashboard PR |
