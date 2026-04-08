@@ -219,13 +219,19 @@ export async function updateGameConfig(
 
   if (!current) return { ok: false, error: 'game_config not found' }
 
+  // Runtime allowlist — prevents crafted calls from injecting cashouts_paused,
+  // referral_confirmations_paused, or any other sensitive field.
+  const ALLOWED_CONFIG_FIELDS = ['min_gameplay_minutes', 'min_session_count', 'signup_bonus_amount', 'signup_bonus_label'] as const
+  type AllowedField = (typeof ALLOWED_CONFIG_FIELDS)[number]
+
   // Build update object with only changed fields
   const changes: Record<string, unknown> = {}
   const beforeValue: Record<string, unknown> = {}
   const afterValue: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(updates)) {
-    if (value !== undefined && value !== (current as Record<string, unknown>)[key]) {
+    if (!(ALLOWED_CONFIG_FIELDS as readonly string[]).includes(key)) continue
+    if (value !== undefined && value !== (current as Record<string, AllowedField>)[key as AllowedField]) {
       changes[key] = value
       beforeValue[key] = (current as Record<string, unknown>)[key]
       afterValue[key] = value
