@@ -1,26 +1,10 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { type NextRequest } from 'next/server'
+import { requireAdmin } from '../requireAdmin'
 
 export async function GET(request: NextRequest): Promise<Response> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: 'Not Found' }, { status: 404 })
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return Response.json({ error: 'Not Found' }, { status: 404 })
-  }
+  const auth = await requireAdmin()
+  if (auth instanceof Response) return auth
 
   const searchParams = request.nextUrl.searchParams
   const page = Math.max(0, Number(searchParams.get('page') ?? 0))

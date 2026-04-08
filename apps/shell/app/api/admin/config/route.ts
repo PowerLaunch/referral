@@ -1,25 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdmin } from '../requireAdmin'
 
 export async function GET(): Promise<Response> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    return Response.json({ error: 'Not Found' }, { status: 404 })
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) {
-    return Response.json({ error: 'Not Found' }, { status: 404 })
-  }
+  const auth = await requireAdmin()
+  if (auth instanceof Response) return auth
 
   const admin = createAdminClient()
 
