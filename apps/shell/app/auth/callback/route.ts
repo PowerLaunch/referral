@@ -70,62 +70,23 @@ export async function GET(request: Request) {
             // Calculate lock period
             const lockPeriodDays = getLockPeriodDays(countryCode, vpnDetected)
 
-            // Calculate payout_eligible_at
-            const payoutEligibleAt = new Date()
-            payoutEligibleAt.setDate(
-              payoutEligibleAt.getDate() + lockPeriodDays
-            )
-
-            // Honeymoon cooldown: block second referral within 14 days of first.
-            // Breaks "invite 10 friends instantly" farming pattern.
-            // .limit(2) so we can distinguish 0 (first), 1 (honeymoon check), 2+ (passed).
-            let skipReferralCreation = false
-            const { data: existingReferrals, error: honeymoonError } =
-              await adminClient
-                .from('referrals')
-                .select('created_at')
-                .eq('referrer_id', referrerProfile.id)
-                .in('status', ['PENDING', 'CONFIRMED'])
-                .order('created_at', { ascending: true })
-                .limit(2)
+            // Atomic honeymoon check + referral insert via RPC.
+            // Advisory lock prevents TOCTOU race on concurrent signups.
+            const { data: honeymoonResult, error: honeymoonError } =
+              await adminClient.rpc('create_referral_with_honeymoon', {
+                p_referrer_id: referrerProfile.id,
+                p_referee_id: user.id,
+                p_referral_code: referralCode,
+                p_lock_period_days: lockPeriodDays,
+                p_country_code: countryCode,
+              })
 
             if (honeymoonError) {
-              console.error('Honeymoon check failed:', honeymoonError)
-              // Fail open: allow referral creation if check fails
-            } else if (existingReferrals && existingReferrals.length === 1) {
-              const firstCreatedAt = new Date(existingReferrals[0].created_at)
-              const daysSinceFirst =
-                (Date.now() - firstCreatedAt.getTime()) / (1000 * 60 * 60 * 24)
-
-              if (daysSinceFirst < 14) {
-                const unlocksAt = new Date(firstCreatedAt)
-                unlocksAt.setDate(unlocksAt.getDate() + 14)
-                console.log(
-                  `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${unlocksAt.toISOString()}`
-                )
-                skipReferralCreation = true
-              }
-            }
-            // length === 0 → first referral, allow
-            // length === 2 → honeymoon already passed, allow
-
-            // Create PENDING referral
-            if (!skipReferralCreation) {
-              const { error: referralError } = await adminClient
-                .from('referrals')
-                .insert({
-                  referrer_id: referrerProfile.id,
-                  referee_id: user.id,
-                  referral_code: referralCode,
-                  status: 'PENDING',
-                  payout_eligible_at: payoutEligibleAt.toISOString(),
-                  country_code: countryCode,
-                  lock_timer_frozen: false,
-                })
-
-              if (referralError) {
-                console.error('Failed to create referral:', referralError)
-              }
+              console.error('Honeymoon referral insert failed:', honeymoonError)
+            } else if (honeymoonResult && !honeymoonResult.created) {
+              console.log(
+                `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${honeymoonResult.unlocks_at}`
+              )
             }
           }
         }
