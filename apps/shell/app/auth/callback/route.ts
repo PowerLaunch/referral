@@ -83,6 +83,24 @@ export async function GET(request: Request) {
 
             if (honeymoonError) {
               console.error('Honeymoon referral insert failed:', honeymoonError)
+              // Fail open: insert referral directly without honeymoon check.
+              // A connection blip or lock timeout should not silently drop the referral.
+              const payoutEligibleAt = new Date()
+              payoutEligibleAt.setDate(payoutEligibleAt.getDate() + lockPeriodDays)
+              const { error: fallbackError } = await adminClient
+                .from('referrals')
+                .insert({
+                  referrer_id: referrerProfile.id,
+                  referee_id: user.id,
+                  referral_code: referralCode,
+                  status: 'PENDING',
+                  payout_eligible_at: payoutEligibleAt.toISOString(),
+                  country_code: countryCode,
+                  lock_timer_frozen: false,
+                })
+              if (fallbackError) {
+                console.error('Fallback referral insert also failed:', fallbackError)
+              }
             } else if (honeymoonResult && !honeymoonResult.created) {
               console.log(
                 `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${honeymoonResult.unlocks_at}`
