@@ -31,7 +31,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Read at runtime, never hardcode — spec Section 2.1
   const { data: gameConfig, error: configError } = await adminClient
     .from('game_config')
-    .select('min_gameplay_minutes, min_session_count, referral_confirmations_paused')
+    .select('min_gameplay_minutes, min_session_count, monthly_referral_cap, referral_confirmations_paused')
     .limit(1)
     .single()
 
@@ -45,6 +45,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const minGameplayMinutes = gameConfig?.min_gameplay_minutes ?? 10
   const minSessionCount = gameConfig?.min_session_count ?? 3
+  const monthlyReferralCap = gameConfig?.monthly_referral_cap ?? 50
 
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
@@ -298,9 +299,9 @@ export async function GET(request: NextRequest): Promise<Response> {
         continue
       }
 
-      if ((confirmedCount ?? 0) >= 50) {
+      if ((confirmedCount ?? 0) >= monthlyReferralCap) {
         console.log(
-          `Referral ${referral.id} skipped: Referrer monthly cap reached (50/month)`
+          `Referral ${referral.id} skipped: Referrer monthly cap reached (${monthlyReferralCap}/month)`
         )
         skipped++
         continue

@@ -9,6 +9,10 @@ ALTER TABLE public.gameplay_sessions
 ALTER TABLE public.game_config
   ADD COLUMN IF NOT EXISTS min_session_count integer NOT NULL DEFAULT 3;
 
+-- 2b. Add monthly_referral_cap to game_config (was hardcoded as 50)
+ALTER TABLE public.game_config
+  ADD COLUMN IF NOT EXISTS monthly_referral_cap integer NOT NULL DEFAULT 50;
+
 -- 3. Update increment_gameplay_minute to track session boundaries.
 --    If last_heartbeat_at was 30+ minutes ago (or NULL), this is a new session.
 CREATE OR REPLACE FUNCTION public.increment_gameplay_minute(p_user_id uuid)
