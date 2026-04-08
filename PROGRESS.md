@@ -200,3 +200,4 @@ Complete these before starting PR 5-A:
 | 2026-04-07 | chore/claude-code-config | PR #18 merged | chore: add CLAUDE.md and update .cursorrules |
 | 2026-04-08 | fix/referral-honeymoon | PR #19 merged | feat: 14-day honeymoon cooldown after first referral |
 | 2026-04-08 | feat/user-dashboard | PR 6-A–6-E | Combined user dashboard PR |
+| 2026-04-08 | feat/user-dashboard | PR #20 merged | feat: complete user dashboard (PR 6-A through 6-E) |
