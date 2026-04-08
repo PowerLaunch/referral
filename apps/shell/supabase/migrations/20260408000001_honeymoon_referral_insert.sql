@@ -33,7 +33,7 @@ BEGIN
   -- 1 existing = check 14-day window
   -- 2+ existing = honeymoon passed, allow
   IF v_existing_count = 1
-     AND v_first_created + INTERVAL '14 days' > timezone('UTC', now())
+     AND v_first_created + INTERVAL '14 days' > now()
   THEN
     RETURN jsonb_build_object(
       'created', false,
@@ -43,7 +43,7 @@ BEGIN
   END IF;
 
   -- Calculate payout_eligible_at from lock period
-  v_payout_eligible_at := timezone('UTC', now())
+  v_payout_eligible_at := now()
     + (p_lock_period_days || ' days')::INTERVAL;
 
   -- Insert the referral
