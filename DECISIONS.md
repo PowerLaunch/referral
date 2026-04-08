@@ -24,6 +24,7 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-07 | PR 4-D: Geo-mismatch fraud rule (R_GEO_MISMATCH) | Flags referrers whose referees are predominantly from a different country | packages/api/src/fraudRules.ts, fraud-scan/route.ts |
 | 2026-04-07 | PR 4-D: Rate limit on /ref/[CODE] | 10 req/IP/min prevents bot click flooding | middleware.ts |
 | 2026-04-07 | PR 4-D: Referee-side referral freeze on chargeback | BugBot catch — chargeback user as referee was not having their referral frozen | packages/api/src/chargebackHandler.ts |
+| 2026-04-07 | First referral honeymoon window (14-day cooldown after first referral) | Breaks instant mass-invite farming pattern | apps/shell/app/auth/callback/route.ts |
 
 ---
 
