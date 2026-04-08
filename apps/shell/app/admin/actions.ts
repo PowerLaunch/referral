@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getLockPeriodDays } from '@referral/api/lockPeriod'
 
 async function requireAdmin(): Promise<string> {
   const supabase = await createClient()
@@ -136,15 +137,9 @@ export async function createSeedUser(
 
     if (referrer) {
       hasReferrer = true
-      // Query lock_period_days from game_config (default 60)
-      const { data: configRow } = await admin
-        .from('game_config')
-        .select('lock_period_days')
-        .limit(1)
-        .single()
-      const lockDays = (configRow?.lock_period_days as number | null) ?? 60
-      const payoutEligibleAt = new Date()
-      payoutEligibleAt.setDate(payoutEligibleAt.getDate() + lockDays)
+      const countryCode = 'PH'
+      const lockDays = getLockPeriodDays(countryCode, false)
+      const payoutEligibleAt = new Date(Date.now() + lockDays * 24 * 60 * 60 * 1000)
 
       const { error: referralError } = await admin.from('referrals').insert({
         referrer_id: referrer.id,
@@ -153,7 +148,7 @@ export async function createSeedUser(
         status: 'PENDING',
         payout_eligible_at: payoutEligibleAt.toISOString(),
         lock_timer_frozen: false,
-        country_code: 'PH',
+        country_code: countryCode,
       })
       if (referralError) {
         if (input.subscriptionActive) {
