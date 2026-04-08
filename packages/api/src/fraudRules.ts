@@ -742,7 +742,6 @@ export async function checkIdentityCluster(
 /**
  * Hook called when a CRITICAL fraud flag is triggered.
  * Automatically voids all PENDING referrals for the flagged user.
- * (Retained from original stub in PR 3-B-patch)
  */
 export async function onCriticalFraudFlag(
   userId: string,

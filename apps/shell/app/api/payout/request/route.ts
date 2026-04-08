@@ -120,6 +120,7 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
+
     // Guard C — Active subscription
     const { data: subscription, error: subError } = await adminClient
       .from('subscriptions')
