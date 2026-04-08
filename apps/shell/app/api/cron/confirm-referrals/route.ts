@@ -31,7 +31,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Read at runtime, never hardcode — spec Section 2.1
   const { data: gameConfig, error: configError } = await adminClient
     .from('game_config')
-    .select('min_gameplay_minutes, referral_confirmations_paused')
+    .select('min_gameplay_minutes, min_session_count, referral_confirmations_paused')
     .limit(1)
     .single()
 
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const minGameplayMinutes = gameConfig?.min_gameplay_minutes ?? 10
+  const minSessionCount = gameConfig?.min_session_count ?? 3
 
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
@@ -205,10 +206,10 @@ export async function GET(request: NextRequest): Promise<Response> {
         continue
       }
 
-      // c) Check referee gameplay time
+      // c) Check referee gameplay time and session diversity
       const { data: gameplayData, error: gameplayError } = await adminClient
         .from('gameplay_sessions')
-        .select('total_minutes')
+        .select('total_minutes, session_count')
         .eq('user_id', referral.referee_id)
         .maybeSingle()
 
@@ -225,6 +226,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       if (totalMinutes < minGameplayMinutes) {
         console.log(
           `Referral ${referral.id} skipped: Referee gameplay insufficient: ${totalMinutes}/${minGameplayMinutes} minutes`
+        )
+        skipped++
+        continue
+      }
+
+      // c2) Check referee session diversity
+      const sessionCount = gameplayData?.session_count ?? 0
+      if (sessionCount < minSessionCount) {
+        console.log(
+          `Referral ${referral.id} skipped: insufficient_sessions: ${sessionCount}/${minSessionCount} sessions`
         )
         skipped++
         continue
