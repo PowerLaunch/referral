@@ -33,25 +33,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Step 1b — Kill switch check
-  const adminClientForConfig = getAdminClient()
-  const { data: gameConfig } = await adminClientForConfig
-    .from('game_config')
-    .select('cashouts_paused')
-    .limit(1)
-    .single()
-
-  if (gameConfig?.cashouts_paused) {
-    console.log('Payouts paused by admin kill switch — exiting')
-    return Response.json({
-      ok: true,
-      message: 'Payouts paused by admin kill switch',
-      rewardMonth: null,
-      awarded: 0,
-      skipped: 0,
-      errors: 0,
-    })
-  }
+  // NOTE: cashouts_paused intentionally NOT checked here — this cron awards
+  // internal credits, not cash outflows. The kill switch blocks actual payouts
+  // in payout/request/route.ts.
 
   // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()

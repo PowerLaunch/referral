@@ -115,10 +115,14 @@ export async function createSeedUser(
 
   // Insert subscription if active
   if (input.subscriptionActive) {
-    await admin.from('subscriptions').insert({
+    const { error: subError } = await admin.from('subscriptions').insert({
       user_id: userId,
       status: 'active',
     })
+    if (subError) {
+      await admin.auth.admin.deleteUser(userId)
+      return { ok: false, error: `Subscription creation failed: ${subError.message}` }
+    }
   }
 
   // Handle referrer code if provided
@@ -132,21 +136,38 @@ export async function createSeedUser(
 
     if (referrer) {
       hasReferrer = true
-      await admin.from('referrals').insert({
+      const { error: referralError } = await admin.from('referrals').insert({
         referrer_id: referrer.id,
         referee_id: userId,
         referral_code: input.referrerCode.trim(),
         status: 'PENDING',
       })
+      if (referralError) {
+        if (input.subscriptionActive) {
+          await admin.from('subscriptions').delete().eq('user_id', userId)
+        }
+        await admin.auth.admin.deleteUser(userId)
+        return { ok: false, error: `Referral creation failed: ${referralError.message}` }
+      }
     }
   }
 
   // Track seed user
-  await admin.from('seed_users').insert({
+  const { error: seedError } = await admin.from('seed_users').insert({
     profile_id: userId,
     created_by_admin: adminId,
     notes: input.notes || null,
   })
+  if (seedError) {
+    if (hasReferrer) {
+      await admin.from('referrals').delete().eq('referee_id', userId)
+    }
+    if (input.subscriptionActive) {
+      await admin.from('subscriptions').delete().eq('user_id', userId)
+    }
+    await admin.auth.admin.deleteUser(userId)
+    return { ok: false, error: `Seed user tracking failed: ${seedError.message}` }
+  }
 
   // Audit log
   await admin.from('admin_audit_logs').insert({
