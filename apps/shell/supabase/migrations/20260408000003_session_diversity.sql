@@ -5,6 +5,12 @@
 ALTER TABLE public.gameplay_sessions
   ADD COLUMN IF NOT EXISTS session_count integer NOT NULL DEFAULT 0;
 
+-- Backfill: credit existing active users with min_session_count so they are not
+-- retroactively blocked by the new requirement.
+UPDATE public.gameplay_sessions
+SET session_count = 3
+WHERE total_minutes >= (SELECT min_gameplay_minutes FROM public.game_config WHERE singleton = true);
+
 -- 2. Add min_session_count to game_config
 ALTER TABLE public.game_config
   ADD COLUMN IF NOT EXISTS min_session_count integer NOT NULL DEFAULT 3;
