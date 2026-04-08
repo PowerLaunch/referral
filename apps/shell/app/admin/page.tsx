@@ -27,6 +27,7 @@ export default async function AdminPulsePage() {
     fraudFlagsResult,
     gameConfigResult,
     cronHealthResult,
+    seedUsersResult,
   ] = await Promise.all([
     // Active subscribers count (for MRR)
     admin
@@ -83,6 +84,10 @@ export default async function AdminPulsePage() {
     admin
       .from('cron_health')
       .select('cron_name, last_success_at'),
+    // Seed users count
+    admin
+      .from('seed_users')
+      .select('*', { count: 'exact', head: true }),
   ])
 
   const activeSubscribers = activeSubsResult.count ?? 0
@@ -94,6 +99,7 @@ export default async function AdminPulsePage() {
   const fraudFlags = fraudFlagsResult.data ?? []
   const gameConfig = gameConfigResult.data
   const cronHealthData = cronHealthResult.data ?? []
+  const seedUsersCount = seedUsersResult.count ?? 0
 
   // Revenue calculations (all-time, apples-to-apples comparison)
   // Placeholder: replace with SUM of actual payment_events once payment integration exists.
@@ -127,7 +133,7 @@ export default async function AdminPulsePage() {
           value={`$${(totalLiability / 100).toFixed(2)}`}
           sub="Credits awarded minus paid out"
         />
-        <MetricCard label="Total Registered" value={String(totalUsers)} sub="All-time signups" />
+        <MetricCard label="Seed Users" value={String(seedUsersCount)} sub="Admin-created test accounts" />
       </div>
 
       {/* System Health */}

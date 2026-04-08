@@ -136,11 +136,24 @@ export async function createSeedUser(
 
     if (referrer) {
       hasReferrer = true
+      // Query lock_period_days from game_config (default 60)
+      const { data: configRow } = await admin
+        .from('game_config')
+        .select('lock_period_days')
+        .limit(1)
+        .single()
+      const lockDays = (configRow?.lock_period_days as number | null) ?? 60
+      const payoutEligibleAt = new Date()
+      payoutEligibleAt.setDate(payoutEligibleAt.getDate() + lockDays)
+
       const { error: referralError } = await admin.from('referrals').insert({
         referrer_id: referrer.id,
         referee_id: userId,
         referral_code: input.referrerCode.trim(),
         status: 'PENDING',
+        payout_eligible_at: payoutEligibleAt.toISOString(),
+        lock_timer_frozen: false,
+        country_code: 'PH',
       })
       if (referralError) {
         if (input.subscriptionActive) {
