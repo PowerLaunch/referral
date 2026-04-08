@@ -90,7 +90,7 @@ export async function POST(request: Request): Promise<Response> {
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('trust_level, created_at, payout_hold')
+      .select('trust_level, created_at, payout_hold, status')
       .eq('id', user.id)
       .single()
 
@@ -318,7 +318,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: getDisplayPayoutStatus(rawStatus, 'ACTIVE'),
+      status: getDisplayPayoutStatus(rawStatus, profile.status as string),
     })
   } catch (error) {
     console.error('Payout request error:', error)
