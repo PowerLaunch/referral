@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { TimezoneToggle } from './components/timezone-toggle'
+import { TimezoneProvider } from './components/timezone-context'
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Pulse' },
@@ -67,13 +68,15 @@ export default async function AdminLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <header className="flex items-center justify-between border-b border-border px-6 py-3">
-          <span className="text-sm text-muted-foreground">Admin Dashboard</span>
-          <TimezoneToggle />
-        </header>
-        <div className="p-6">{children}</div>
-      </main>
+      <TimezoneProvider>
+        <main className="flex-1 overflow-auto">
+          <header className="flex items-center justify-between border-b border-border px-6 py-3">
+            <span className="text-sm text-muted-foreground">Admin Dashboard</span>
+            <TimezoneToggle />
+          </header>
+          <div className="p-6">{children}</div>
+        </main>
+      </TimezoneProvider>
     </div>
   )
 }

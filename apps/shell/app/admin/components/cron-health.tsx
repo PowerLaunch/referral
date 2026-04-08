@@ -1,6 +1,6 @@
 'use client'
 
-import { formatAdminDate } from './timezone-toggle'
+import { useTimezone, formatAdminDate } from './timezone-context'
 
 interface CronEntry {
   cron_name: string
@@ -8,6 +8,7 @@ interface CronEntry {
 }
 
 export function CronHealth({ entries }: { entries: CronEntry[] }) {
+  const { tz } = useTimezone()
   const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 
   if (entries.length === 0) {
@@ -35,7 +36,7 @@ export function CronHealth({ entries }: { entries: CronEntry[] }) {
               <span className="font-mono">{entry.cron_name}</span>
               <span className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
-                  {formatAdminDate(entry.last_success_at)}
+                  {formatAdminDate(entry.last_success_at, tz)}
                 </span>
                 {stale && (
                   <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-900/30 dark:text-red-400">

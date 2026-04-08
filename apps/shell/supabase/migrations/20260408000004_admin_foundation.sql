@@ -36,3 +36,37 @@ CREATE TABLE cron_health (
 ALTER TABLE cron_health ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all" ON cron_health
   FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 5. Atomic toggle RPC for cashouts_paused (eliminates read-then-write race)
+CREATE OR REPLACE FUNCTION public.toggle_cashouts_paused()
+RETURNS boolean AS $$
+DECLARE
+  new_value boolean;
+BEGIN
+  UPDATE public.game_config
+  SET cashouts_paused = NOT cashouts_paused
+  WHERE singleton = true
+  RETURNING cashouts_paused INTO new_value;
+  RETURN new_value;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE EXECUTE ON FUNCTION public.toggle_cashouts_paused() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.toggle_cashouts_paused() TO service_role;
+
+-- 6. Atomic toggle RPC for referral_confirmations_paused
+CREATE OR REPLACE FUNCTION public.toggle_referral_confirmations_paused()
+RETURNS boolean AS $$
+DECLARE
+  new_value boolean;
+BEGIN
+  UPDATE public.game_config
+  SET referral_confirmations_paused = NOT referral_confirmations_paused
+  WHERE singleton = true
+  RETURNING referral_confirmations_paused INTO new_value;
+  RETURN new_value;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE EXECUTE ON FUNCTION public.toggle_referral_confirmations_paused() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.toggle_referral_confirmations_paused() TO service_role;

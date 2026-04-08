@@ -34,15 +34,20 @@ export async function GET(request: NextRequest): Promise<Response> {
     .from('admin_audit_logs')
     .select('id, admin_user_id, action, target_type, target_id, before_value, after_value, reason, details, created_at')
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+    .range(offset, offset + limit)
 
   if (error) {
     return Response.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
   }
 
+  // Fetch limit+1 rows to detect next page, but only return limit rows
+  const allRows = logs ?? []
+  const hasMore = allRows.length > limit
+  const pageRows = allRows.slice(0, limit)
+
   // Fetch admin emails for the log entries
   const adminIds = [
-    ...new Set((logs ?? []).map((l) => l.admin_user_id as string | null).filter(Boolean)),
+    ...new Set(pageRows.map((l) => l.admin_user_id as string | null).filter(Boolean)),
   ] as string[]
 
   let adminMap = new Map<string, string>()
@@ -57,13 +62,13 @@ export async function GET(request: NextRequest): Promise<Response> {
     )
   }
 
-  const entries = (logs ?? []).map((l) => ({
+  const entries = pageRows.map((l) => ({
     ...l,
     admin_email: l.admin_user_id ? (adminMap.get(l.admin_user_id as string) ?? null) : null,
   }))
 
   return Response.json({
     entries,
-    hasMore: (logs ?? []).length > limit,
+    hasMore,
   })
 }

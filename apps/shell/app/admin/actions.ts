@@ -26,64 +26,46 @@ export async function toggleCashoutsPaused(): Promise<{ ok: boolean; paused: boo
   const adminId = await requireAdmin()
   const admin = createAdminClient()
 
-  const { data: config } = await admin
-    .from('game_config')
-    .select('cashouts_paused')
-    .limit(1)
-    .single()
-
-  const currentValue = config?.cashouts_paused ?? false
-  const newValue = !currentValue
-
-  const { error } = await admin
-    .from('game_config')
-    .update({ cashouts_paused: newValue })
-    .eq('singleton', true)
+  // Atomic toggle via RPC — no read-then-write race condition
+  const { data: newValue, error } = await admin.rpc('toggle_cashouts_paused')
 
   if (error) throw new Error('Failed to toggle cashouts_paused')
+
+  const paused = newValue as boolean
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'toggle_cashouts_paused',
     target_type: 'config',
-    before_value: JSON.stringify({ cashouts_paused: currentValue }),
-    after_value: JSON.stringify({ cashouts_paused: newValue }),
-    details: { toggled_to: newValue },
+    before_value: JSON.stringify({ cashouts_paused: !paused }),
+    after_value: JSON.stringify({ cashouts_paused: paused }),
+    details: { toggled_to: paused },
   })
 
-  return { ok: true, paused: newValue }
+  return { ok: true, paused }
 }
 
 export async function toggleReferralConfirmationsPaused(): Promise<{ ok: boolean; paused: boolean }> {
   const adminId = await requireAdmin()
   const admin = createAdminClient()
 
-  const { data: config } = await admin
-    .from('game_config')
-    .select('referral_confirmations_paused')
-    .limit(1)
-    .single()
-
-  const currentValue = config?.referral_confirmations_paused ?? false
-  const newValue = !currentValue
-
-  const { error } = await admin
-    .from('game_config')
-    .update({ referral_confirmations_paused: newValue })
-    .eq('singleton', true)
+  // Atomic toggle via RPC — no read-then-write race condition
+  const { data: newValue, error } = await admin.rpc('toggle_referral_confirmations_paused')
 
   if (error) throw new Error('Failed to toggle referral_confirmations_paused')
+
+  const paused = newValue as boolean
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'toggle_referral_confirmations_paused',
     target_type: 'config',
-    before_value: JSON.stringify({ referral_confirmations_paused: currentValue }),
-    after_value: JSON.stringify({ referral_confirmations_paused: newValue }),
-    details: { toggled_to: newValue },
+    before_value: JSON.stringify({ referral_confirmations_paused: !paused }),
+    after_value: JSON.stringify({ referral_confirmations_paused: paused }),
+    details: { toggled_to: paused },
   })
 
-  return { ok: true, paused: newValue }
+  return { ok: true, paused }
 }
 
 // --- Seed Users ---

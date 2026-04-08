@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { formatAdminDate } from '../components/timezone-toggle'
+import { useTimezone, formatAdminDate } from '../components/timezone-context'
 
 interface AuditLogEntry {
   id: string
@@ -20,6 +20,7 @@ interface AuditLogEntry {
 const PAGE_SIZE = 50
 
 export default function AuditLogPage() {
+  const { tz } = useTimezone()
   const [entries, setEntries] = useState<AuditLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
@@ -71,7 +72,7 @@ export default function AuditLogPage() {
                   {entries.map((entry) => (
                     <tr key={entry.id} className="border-b border-border/50 last:border-0">
                       <td className="py-3 pr-4 text-xs text-muted-foreground">
-                        {formatAdminDate(entry.created_at)}
+                        {formatAdminDate(entry.created_at, tz)}
                       </td>
                       <td className="py-3 pr-4 font-mono text-xs font-medium">
                         {entry.action}

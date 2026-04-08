@@ -1,6 +1,6 @@
 'use client'
 
-import { formatAdminDate } from './timezone-toggle'
+import { useTimezone, formatAdminDate } from './timezone-context'
 
 interface FraudFlag {
   id: string
@@ -12,6 +12,8 @@ interface FraudFlag {
 }
 
 export function FraudAlertsFeed({ flags }: { flags: FraudFlag[] }) {
+  const { tz } = useTimezone()
+
   if (flags.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-6">
@@ -36,7 +38,7 @@ export function FraudAlertsFeed({ flags }: { flags: FraudFlag[] }) {
                   {flag.rule_triggered}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {formatAdminDate(flag.created_at)}
+                  {formatAdminDate(flag.created_at, tz)}
                 </span>
               </div>
               {flag.details && (
