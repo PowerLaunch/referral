@@ -17,17 +17,22 @@ export default function DisputePage() {
     setSubmitting(true)
     setResult(null)
 
-    const response = await submitDispute({
-      referralId: selectedReferral || null,
-      description,
-    })
+    try {
+      const response = await submitDispute({
+        referralId: selectedReferral || null,
+        description,
+      })
 
-    setResult(response)
-    if (response.success) {
-      setDescription('')
-      setSelectedReferral('')
+      setResult(response)
+      if (response.success) {
+        setDescription('')
+        setSelectedReferral('')
+      }
+    } catch {
+      setResult({ success: false, error: 'Something went wrong. Please try again.' })
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   if (result?.success) {

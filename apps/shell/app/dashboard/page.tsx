@@ -101,6 +101,7 @@ export default async function DashboardPage() {
   const refereeEmails = await getObfuscatedRefereeEmails(refereeIds)
 
   const userStatus = profile?.status ?? 'ACTIVE'
+  const payoutHold = profile?.payout_hold === true
   const kycVerified = !!profile?.verified_kyc_hash
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.example.com'
@@ -150,6 +151,7 @@ export default async function DashboardPage() {
           cashBalance={cashBalance}
           kycVerified={kycVerified}
           userStatus={userStatus}
+          payoutHold={payoutHold}
         />
         <PayoutHistory payouts={payouts} userStatus={userStatus} />
       </div>

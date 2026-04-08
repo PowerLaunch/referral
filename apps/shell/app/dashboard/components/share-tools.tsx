@@ -24,6 +24,12 @@ export function ShareTools({
       ? `Join me on Tusok-Tusok Tycoon! Use my link to get ${signupBonusAmount} free ${signupBonusLabel} when you sign up: ${referralLink}`
       : `Join me on Tusok-Tusok Tycoon! Sign up with my link: ${referralLink}`
 
+  // Telegram auto-appends the url param, so exclude the link from text
+  const telegramMessage =
+    signupBonusAmount > 0
+      ? `Join me on Tusok-Tusok Tycoon! Use my link to get ${signupBonusAmount} free ${signupBonusLabel} when you sign up!`
+      : `Join me on Tusok-Tusok Tycoon! Sign up with my link!`
+
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(referralLink)
@@ -43,7 +49,7 @@ export function ShareTools({
   }
 
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
-  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(message)}`
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(telegramMessage)}`
 
   return (
     <div className="rounded-lg border border-border bg-card p-6">

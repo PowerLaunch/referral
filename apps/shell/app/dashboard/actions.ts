@@ -2,16 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-
-/**
- * Obfuscate an email address: j***@email.com pattern.
- * Shows first character + *** + @ + domain.
- */
-function obfuscateEmail(email: string): string {
-  const [local, domain] = email.split('@')
-  if (!local || !domain) return '***@***'
-  return `${local[0]}***@${domain}`
-}
+import { obfuscateEmail } from '@referral/api/email'
 
 /**
  * Server action: fetch obfuscated referee emails for a list of referral referee IDs.

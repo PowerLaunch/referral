@@ -22,12 +22,14 @@ interface PayoutSectionProps {
   cashBalance: number // in cents
   kycVerified: boolean
   userStatus: string
+  payoutHold: boolean
 }
 
 export function PayoutSection({
   cashBalance,
   kycVerified,
   userStatus,
+  payoutHold,
 }: PayoutSectionProps) {
   const [selectedMethod, setSelectedMethod] = useState<string>('gcash')
   const [amount, setAmount] = useState<string>('')
@@ -74,7 +76,7 @@ export function PayoutSection({
   }
 
   const payoutBlocked =
-    userStatus === 'REVIEW_HOLD' || userStatus === 'FROZEN' || userStatus === 'BANNED'
+    userStatus === 'REVIEW_HOLD' || userStatus === 'FROZEN' || userStatus === 'BANNED' || payoutHold
 
   if (payoutBlocked) {
     return (
