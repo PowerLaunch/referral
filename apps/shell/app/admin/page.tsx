@@ -30,25 +30,34 @@ export default async function AdminPulsePage() {
       .from('subscriptions')
       .select('*', { count: 'exact', head: true }),
     // Pending payouts
+    // PostgREST default limit is 1000 — explicit limit prevents silent truncation.
+    // TODO: replace with DB-level SUM aggregate for scale.
     admin
       .from('payouts')
       .select('amount')
-      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL']),
+      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL'])
+      .limit(10000),
     // Total registered users
     admin
       .from('profiles')
       .select('*', { count: 'exact', head: true }),
     // Total credits awarded (positive CASH_BALANCE transactions = earnings)
+    // PostgREST default limit is 1000 — explicit limit prevents silent truncation.
+    // TODO: replace with DB-level SUM aggregate for scale.
     admin
       .from('credit_transactions')
       .select('amount')
       .eq('type', 'CASH_BALANCE')
-      .gt('amount', 0),
+      .gt('amount', 0)
+      .limit(10000),
     // Completed payouts total
+    // PostgREST default limit is 1000 — explicit limit prevents silent truncation.
+    // TODO: replace with DB-level SUM aggregate for scale.
     admin
       .from('payouts')
       .select('amount')
-      .eq('status', 'COMPLETED'),
+      .eq('status', 'COMPLETED')
+      .limit(10000),
     // Last 20 CRITICAL fraud flags
     admin
       .from('fraud_flags')

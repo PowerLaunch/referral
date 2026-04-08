@@ -70,3 +70,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 REVOKE EXECUTE ON FUNCTION public.toggle_referral_confirmations_paused() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.toggle_referral_confirmations_paused() TO service_role;
+
+-- 7. Ensure game_config has min_session_count and monthly_referral_cap columns.
+-- These may already exist from PR #21's migration; IF NOT EXISTS makes this idempotent.
+ALTER TABLE game_config ADD COLUMN IF NOT EXISTS min_session_count integer NOT NULL DEFAULT 3;
+ALTER TABLE game_config ADD COLUMN IF NOT EXISTS monthly_referral_cap integer NOT NULL DEFAULT 50;
