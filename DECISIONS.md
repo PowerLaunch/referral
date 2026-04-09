@@ -30,6 +30,7 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-08 | Admin foundation (PR #22 feat/admin-foundation) combines 7-A, 7-B, 7-I plus seed users, kill switch, revenue dashboard, fraud alerts feed, config editor, and audit log | Remaining admin sub-pages (detailed user management, cashout review, fraud clusters, KYC, influencers, disputes) will be separate follow-up PRs | admin/*, api/admin/*, migration 20260408000004, recurring-payouts/route.ts, payout/request/route.ts |
 | 2026-04-09 | PRs 7-C and 7-H combined into single PR (feat/admin-users) | Both are admin table views with similar patterns — user management and disputes share detail/action UI | admin/users/*, admin/disputes/*, migration 20260409000001 |
 | 2026-04-09 | Influencer management (PR 7-G) in feat/admin-influencers | Custom payout %, caps, instant payout, lock bypass with audit trail. influencer_codes table + wired into confirm-referrals cron | admin/influencers/*, migration 20260409000002, confirm-referrals/route.ts |
+| 2026-04-09 | chore/security-todos: Added TODO reminders for 12 security measures across 5-A, 5-B, and post-Phase-5 fraud patches | Source: SECURITY.md + Gemini review | payout/request/route.ts, webhooks/subscription/route.ts, packages/api/src/fraudRules.ts |
 
 ---
 

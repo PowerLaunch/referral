@@ -762,3 +762,7 @@ export async function onCriticalFraudFlag(
     console.error(`Failed to void credits for ${userId}:`, err)
   }
 }
+
+// TODO post-Phase-5 fraud patch: Referral timing pattern analysis — flag referrers whose referees sign up at machine-like regular intervals (e.g., every 2 minutes). Calculate standard deviation of time gaps between referee signups. If stdev < 60 seconds across 5+ referees, insert WARNING fraud_flag (R_TIMING_PATTERN).
+// TODO post-Phase-5 fraud patch: Time-to-maturity variance — flag referrers whose referees all hit min_gameplay_minutes within <30 seconds standard deviation of each other. Bots stop at exactly the threshold; humans don't. Insert WARNING fraud_flag (R_MATURITY_VARIANCE).
+// TODO post-Phase-5 fraud patch: Retention cliff detection — flag referrers whose 3+ referees all cancel on the same day, especially right after lock period ends. Coordinated cancellation = farm accounts that exist solely to trigger payout. Insert WARNING fraud_flag (R_RETENTION_CLIFF).
