@@ -108,6 +108,7 @@ export async function createSeedUser(
     .eq('id', userId)
 
   if (profileError) {
+    await admin.auth.admin.deleteUser(userId)
     return { ok: false, error: `Profile update failed: ${profileError.message}` }
   }
 
