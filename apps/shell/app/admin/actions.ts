@@ -232,8 +232,6 @@ export async function deleteSeedUser(
 interface ConfigUpdate {
   min_gameplay_minutes?: number
   min_session_count?: number
-  signup_bonus_amount?: number
-  signup_bonus_label?: string
 }
 
 export async function updateGameConfig(
@@ -253,7 +251,7 @@ export async function updateGameConfig(
 
   // Runtime allowlist — prevents crafted calls from injecting cashouts_paused,
   // referral_confirmations_paused, or any other sensitive field.
-  const ALLOWED_CONFIG_FIELDS = ['min_gameplay_minutes', 'min_session_count', 'signup_bonus_amount', 'signup_bonus_label'] as const
+  const ALLOWED_CONFIG_FIELDS = ['min_gameplay_minutes', 'min_session_count'] as const
   type AllowedField = (typeof ALLOWED_CONFIG_FIELDS)[number]
 
   // Build update object with only changed fields

@@ -9,7 +9,7 @@ export async function GET(): Promise<Response> {
 
   const { data: config, error } = await admin
     .from('game_config')
-    .select('min_gameplay_minutes, min_session_count, signup_bonus_amount, signup_bonus_label, cashouts_paused, referral_confirmations_paused')
+    .select('min_gameplay_minutes, min_session_count, cashouts_paused, referral_confirmations_paused')
     .limit(1)
     .single()
 

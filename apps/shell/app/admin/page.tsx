@@ -103,8 +103,9 @@ export default async function AdminPulsePage() {
   const cronHealthData = cronHealthResult.data ?? []
   const seedUsersCount = seedUsersResult.count ?? 0
 
-  // Revenue calculations (all-time, apples-to-apples comparison)
-  // Placeholder: replace with SUM of actual payment_events once payment integration exists.
+  // Revenue calculations (estimate — not actual all-time revenue)
+  // Placeholder metric: counts current active/past_due subs x $5.
+  // Will be replaced with actual payment_events sum once payment integration exists.
   const subscriptionRevenue = paidSubscriptions * 500 // active/past_due subs x $5
   const totalPayoutsAmount = completedPayouts.reduce((sum, p) => sum + (p.amount as number), 0)
   const netRevenue = subscriptionRevenue - totalPayoutsAmount
@@ -121,7 +122,7 @@ export default async function AdminPulsePage() {
       {/* Revenue Dashboard */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          label="Net Revenue (All-Time)"
+          label="Net Revenue (Estimate)"
           value={`$${(netRevenue / 100).toFixed(2)}`}
           sub={`$${(subscriptionRevenue / 100).toFixed(2)} subs - $${(totalPayoutsAmount / 100).toFixed(2)} payouts`}
         />
