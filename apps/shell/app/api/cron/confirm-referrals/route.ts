@@ -61,12 +61,15 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 3 — Fetch eligible referrals
+  // Capture timestamp once so both batch queries use the same cutoff
+  const batchNow = new Date().toISOString()
+
   // Batch 1: standard referrals past lock period
   const { data: standardReferrals, error: standardError } = await adminClient
     .from('referrals')
     .select('*')
     .eq('status', 'PENDING')
-    .lte('payout_eligible_at', new Date().toISOString())
+    .lte('payout_eligible_at', batchNow)
     .eq('lock_timer_frozen', false)
     .limit(10000)
   // Explicit limit above PostgREST default (1000) to prevent silent truncation.
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     .select('*, influencer_codes!inner(lock_bypass, active)')
     .eq('status', 'PENDING')
     .eq('lock_timer_frozen', false)
-    .gt('payout_eligible_at', new Date().toISOString())
+    .gt('payout_eligible_at', batchNow)
     .eq('influencer_codes.lock_bypass', true)
     .eq('influencer_codes.active', true)
     .limit(10000)
