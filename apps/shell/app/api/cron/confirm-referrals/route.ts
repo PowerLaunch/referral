@@ -81,13 +81,15 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Batch 2: influencer referrals that may bypass lock period
+  // Join influencer_codes at the DB level to avoid N+1 queries in the loop
   const { data: influencerReferrals, error: influencerError } = await adminClient
     .from('referrals')
-    .select('*')
+    .select('*, influencer_codes!inner(lock_bypass, active)')
     .eq('status', 'PENDING')
     .eq('lock_timer_frozen', false)
-    .not('influencer_code_id', 'is', null)
     .gt('payout_eligible_at', new Date().toISOString())
+    .eq('influencer_codes.lock_bypass', true)
+    .eq('influencer_codes.active', true)
     .limit(10000)
 
   if (influencerError) {
@@ -133,20 +135,7 @@ export async function GET(request: NextRequest): Promise<Response> {
           continue
         }
 
-        const { data: influencerCode } = await adminClient
-          .from('influencer_codes')
-          .select('lock_bypass, active')
-          .eq('id', referral.influencer_code_id)
-          .single()
-
-        if (!influencerCode?.lock_bypass || !influencerCode.active) {
-          console.log(
-            `Referral ${referral.id} skipped: influencer code lock_bypass not enabled or inactive`
-          )
-          skipped++
-          continue
-        }
-
+        // lock_bypass + active already verified by Batch 2 DB join
         console.log(
           `Referral ${referral.id}: influencer lock_bypass eligible, checking remaining criteria`
         )

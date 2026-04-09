@@ -196,7 +196,7 @@ export async function deactivateInfluencerCode(
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
-    action: 'INFLUENCER_CODE_UPDATED',
+    action: 'INFLUENCER_CODE_DEACTIVATED',
     target_type: 'influencer_code',
     target_id: codeId,
     before_value: JSON.stringify({ active: true }),
