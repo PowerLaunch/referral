@@ -15,7 +15,8 @@
     "./riskScore": "./src/riskScore.ts",
     "./kycHash": "./src/kycHash.ts",
     "./statusDisplay": "./src/statusDisplay.ts",
-    "./chargebackHandler": "./src/chargebackHandler.ts"
+    "./chargebackHandler": "./src/chargebackHandler.ts",
+    "./cronHealth": "./src/cronHealth.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
