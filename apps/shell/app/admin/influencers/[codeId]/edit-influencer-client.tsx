@@ -220,7 +220,7 @@ export default function EditInfluencerClient({ codeId }: { codeId: string }) {
               Lock period bypass
             </label>
 
-            {lockBypass && !code.lock_bypass && (
+            {lockBypass && !lockBypassConfirmed && (
               <div className="ml-6 rounded-md border border-yellow-300 bg-yellow-50 p-3">
                 <label className="flex items-start gap-2 text-sm text-yellow-800">
                   <input
