@@ -15,6 +15,7 @@ export default function ConfigClient() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Form state
   const [minGameplayMinutes, setMinGameplayMinutes] = useState(10)
@@ -22,6 +23,7 @@ export default function ConfigClient() {
 
   const fetchConfig = useCallback(async () => {
     setLoading(true)
+    setFetchError(null)
     try {
       const res = await fetch('/api/admin/config')
       if (res.ok) {
@@ -29,9 +31,11 @@ export default function ConfigClient() {
         setConfig(data.config)
         setMinGameplayMinutes(data.config.min_gameplay_minutes)
         setMinSessionCount(data.config.min_session_count ?? 3)
+      } else {
+        setFetchError('Failed to load config')
       }
     } catch {
-      // Silently fail
+      setFetchError('Failed to load config')
     } finally {
       setLoading(false)
     }
@@ -77,6 +81,12 @@ export default function ConfigClient() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Config Settings</h1>
+
+      {fetchError && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+          {fetchError}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border bg-card p-6">
         <h2 className="mb-4 text-lg font-semibold">Game Config</h2>
@@ -131,7 +141,7 @@ export default function ConfigClient() {
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || !!fetchError}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Config'}
