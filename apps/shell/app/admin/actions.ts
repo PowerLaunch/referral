@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getLockPeriodDays } from '@referral/api/lockPeriod'
 
-async function requireAdmin(): Promise<string> {
+export async function requireAdmin(): Promise<string> {
   const supabase = await createClient()
   const {
     data: { user },
