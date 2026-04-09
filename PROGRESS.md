@@ -207,3 +207,4 @@ Complete these before starting PR 5-A:
 | 2026-04-09 | feat/scaffold | PR #24 merged | chore: merge feat/scaffold into main |
 | 2026-04-09 | feat/admin-influencers | PR #26 merged | feat: influencer code management (PR 7-G) |
 | 2026-04-09 | feat/admin-users | PR #25 merged | feat: admin user management and disputes (PR 7-C/7-H) |
+| 2026-04-09 | chore/security-todos | PR #27 merged | chore: security TODO reminders for 5-A, 5-B, post-Phase-5 |
