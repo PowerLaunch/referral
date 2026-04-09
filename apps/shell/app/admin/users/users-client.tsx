@@ -67,7 +67,7 @@ export default function UsersClient() {
 
   useEffect(() => {
     void fetchUsers(search, page)
-  }, [fetchUsers, search, page])
+  }, [fetchUsers, page]) // eslint-disable-line react-hooks/exhaustive-deps -- search triggers only via handleSearch form submit
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()

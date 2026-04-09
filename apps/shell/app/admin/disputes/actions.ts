@@ -1,25 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { awardCredits } from '@referral/api/credits'
-
-async function requireAdmin(): Promise<string> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.is_admin) throw new Error('Not authorized')
-  return user.id
-}
+import { requireAdmin } from '../actions'
 
 export async function markUnderReview(
   disputeId: string,
@@ -37,6 +20,8 @@ export async function markUnderReview(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
+  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
+  if (dispute.status === 'UNDER_REVIEW') return { ok: false, error: 'Dispute is already under review' }
 
   const { error } = await admin
     .from('disputes')
@@ -74,6 +59,7 @@ export async function upholdFlag(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
+  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
 
   const { error } = await admin
     .from('disputes')
@@ -115,6 +101,7 @@ export async function restoreReferral(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
+  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
   if (!dispute.referral_id) return { ok: false, error: 'No referral linked to this dispute' }
 
   const referralId = dispute.referral_id as string
@@ -172,18 +159,11 @@ export async function adjustPayout(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
+  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
 
   const userId = dispute.user_id as string
 
-  // Award credits
-  await awardCredits(
-    userId,
-    amount,
-    'CASH_BALANCE',
-    `dispute_adjustment:${disputeId}`
-  )
-
-  // Resolve dispute
+  // Resolve dispute FIRST to prevent double-payout on retry
   const { error: dispError } = await admin
     .from('disputes')
     .update({
@@ -194,6 +174,21 @@ export async function adjustPayout(
     .eq('id', disputeId)
 
   if (dispError) return { ok: false, error: `Failed to resolve dispute: ${dispError.message}` }
+
+  // Award credits AFTER dispute is resolved
+  try {
+    await awardCredits(
+      userId,
+      amount,
+      'CASH_BALANCE',
+      `dispute_adjustment:${disputeId}`
+    )
+  } catch {
+    return {
+      ok: false,
+      error: 'Dispute marked resolved but credit award failed — check credit_transactions manually',
+    }
+  }
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,

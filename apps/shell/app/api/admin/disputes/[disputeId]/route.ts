@@ -29,18 +29,22 @@ export async function GET(
     .eq('id', dispute.user_id as string)
     .single()
 
-  // Fetch related audit logs for the referral
-  let auditLogs: Array<Record<string, unknown>> = []
-  if (dispute.referral_id) {
-    const { data: logs } = await admin
-      .from('admin_audit_logs')
-      .select('id, action, admin_user_id, before_value, after_value, details, created_at')
-      .eq('target_id', dispute.referral_id as string)
-      .order('created_at', { ascending: false })
-      .limit(50)
+  // Fetch related audit logs for both the referral and the dispute itself
+  const auditQuery = admin
+    .from('admin_audit_logs')
+    .select('id, action, admin_user_id, before_value, after_value, details, created_at')
 
-    auditLogs = (logs ?? []) as Array<Record<string, unknown>>
+  if (dispute.referral_id) {
+    auditQuery.or(`target_id.eq.${dispute.referral_id as string},target_id.eq.${disputeId}`)
+  } else {
+    auditQuery.eq('target_id', disputeId)
   }
+
+  const { data: logs } = await auditQuery
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  const auditLogs = (logs ?? []) as Array<Record<string, unknown>>
 
   return Response.json({
     dispute: {
