@@ -2,6 +2,11 @@
 // CASH_BALANCE and creates a payout record via Postgres RPC.
 // GAME_CREDITS are non-cashable — only CASH_BALANCE can be cashed out.
 
+// TODO PR 5-B: Add R8 payout destination clustering — flag when 2+ accounts cash out to same GCash/bank/PayPal
+// TODO PR 5-B: Add payout destination lock — 30-day lock after first successful payout to a destination
+// TODO PR 5-B: Payout velocity cap — use ROLLING 24-hour window (not calendar day) to prevent midnight-rush gaming. Add $200 minimum floor so early-stage legitimate payouts aren't blocked. Cap = max(trailing_30d_revenue * daily_payout_cap_pct / 30, 200). Store daily_payout_cap_pct in game_config (default 15).
+// TODO PR 5-B: GCash name-match verification — on payout, check if GCash registered name matches KYC-verified name. Depends on Triple-A/XanPool API exposing registered name. If available, mismatch = CRITICAL fraud flag (R_NAME_MISMATCH). If not available, skip.
+
 import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
