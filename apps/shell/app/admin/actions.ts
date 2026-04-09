@@ -121,6 +121,7 @@ export async function createSeedUser(
       status: 'active',
     })
     if (subError) {
+      await admin.from('profiles').delete().eq('id', userId)
       await admin.auth.admin.deleteUser(userId)
       return { ok: false, error: `Subscription creation failed: ${subError.message}` }
     }
@@ -154,6 +155,7 @@ export async function createSeedUser(
         if (input.subscriptionActive) {
           await admin.from('subscriptions').delete().eq('user_id', userId)
         }
+        await admin.from('profiles').delete().eq('id', userId)
         await admin.auth.admin.deleteUser(userId)
         return { ok: false, error: `Referral creation failed: ${referralError.message}` }
       }
@@ -173,6 +175,7 @@ export async function createSeedUser(
     if (input.subscriptionActive) {
       await admin.from('subscriptions').delete().eq('user_id', userId)
     }
+    await admin.from('profiles').delete().eq('id', userId)
     await admin.auth.admin.deleteUser(userId)
     return { ok: false, error: `Seed user tracking failed: ${seedError.message}` }
   }

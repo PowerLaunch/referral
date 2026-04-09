@@ -19,7 +19,7 @@ export default async function AdminPulsePage() {
   // Parallel queries for dashboard data
   const [
     activeSubsResult,
-    allSubsResult,
+    paidSubsResult,
     pendingPayoutsResult,
     totalUsersResult,
     creditTxResult,
@@ -34,10 +34,12 @@ export default async function AdminPulsePage() {
       .from('subscriptions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'active'),
-    // All subscriptions ever (for all-time revenue proxy)
+    // Only count active/past_due subscriptions as revenue. Cancelled/refunded excluded.
+    // Placeholder until payment_events table exists.
     admin
       .from('subscriptions')
-      .select('*', { count: 'exact', head: true }),
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['active', 'past_due']),
     // Pending payouts
     // PostgREST default limit is 1000 — explicit limit prevents silent truncation.
     // TODO: replace with DB-level SUM aggregate for scale.
@@ -91,7 +93,7 @@ export default async function AdminPulsePage() {
   ])
 
   const activeSubscribers = activeSubsResult.count ?? 0
-  const allSubscriptions = allSubsResult.count ?? 0
+  const paidSubscriptions = paidSubsResult.count ?? 0
   const pendingPayouts = pendingPayoutsResult.data ?? []
   const totalUsers = totalUsersResult.count ?? 0
   const creditTx = creditTxResult.data ?? []
@@ -103,7 +105,7 @@ export default async function AdminPulsePage() {
 
   // Revenue calculations (all-time, apples-to-apples comparison)
   // Placeholder: replace with SUM of actual payment_events once payment integration exists.
-  const subscriptionRevenue = allSubscriptions * 500 // all-time: every sub paid $5 at least once
+  const subscriptionRevenue = paidSubscriptions * 500 // active/past_due subs x $5
   const totalPayoutsAmount = completedPayouts.reduce((sum, p) => sum + (p.amount as number), 0)
   const netRevenue = subscriptionRevenue - totalPayoutsAmount
   const totalLiability = creditTx.reduce((sum, tx) => sum + (tx.amount as number), 0) - totalPayoutsAmount
