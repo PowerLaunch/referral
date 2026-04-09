@@ -48,7 +48,18 @@ export async function approvePayout(
   if (!updated || updated.length === 0) return { ok: false, error: 'Payout already transitioned' }
 
   // Execute payout (stub — marks COMPLETED for now)
-  const execResult = await executePayout(payoutId)
+  let execResult: { ok: boolean; error?: string }
+  try {
+    execResult = await executePayout(payoutId)
+  } catch (execError) {
+    // Exception thrown — revert to previous status (atomic guard)
+    await admin
+      .from('payouts')
+      .update({ status: beforeStatus })
+      .eq('id', payoutId)
+      .eq('status', 'PROCESSING')
+    return { ok: false, error: `Execution threw: ${String(execError)}` }
+  }
   if (!execResult.ok) {
     // Revert to previous status on execution failure (atomic guard)
     await admin
@@ -167,6 +178,7 @@ export async function batchApproveLowRisk(
 
   // Process sequentially to avoid race conditions
   for (const payoutId of payoutIds) {
+    let statusBeforeProcessing: string | null = null
     try {
       // Server-side validation — never trust client filter
       const { data: payout } = await admin
@@ -226,7 +238,21 @@ export async function batchApproveLowRisk(
 
       // Execute payout stub
       const previousStatus = payout.status as string
-      const execResult = await executePayout(payoutId)
+      statusBeforeProcessing = previousStatus
+      let execResult: { ok: boolean; error?: string }
+      try {
+        execResult = await executePayout(payoutId)
+      } catch (execError) {
+        // Exception thrown — revert to previous status (atomic guard)
+        await admin
+          .from('payouts')
+          .update({ status: previousStatus })
+          .eq('id', payoutId)
+          .eq('status', 'PROCESSING')
+        errors.push(`${payoutId}: execution threw: ${String(execError)}`)
+        skipped++
+        continue
+      }
       if (!execResult.ok) {
         // Revert to previous status on execution failure (atomic guard)
         await admin
@@ -257,6 +283,14 @@ export async function batchApproveLowRisk(
 
       approved++
     } catch (err) {
+      // Revert if payout was moved to PROCESSING before the error (atomic guard)
+      if (statusBeforeProcessing) {
+        await admin
+          .from('payouts')
+          .update({ status: statusBeforeProcessing })
+          .eq('id', payoutId)
+          .eq('status', 'PROCESSING')
+      }
       errors.push(`${payoutId}: ${String(err)}`)
       skipped++
     }
@@ -296,7 +330,18 @@ export async function retryFailedPayout(
   if (!updated || updated.length === 0) return { ok: false, error: 'Payout already transitioned' }
 
   // Execute payout stub
-  const execResult = await executePayout(payoutId)
+  let execResult: { ok: boolean; error?: string }
+  try {
+    execResult = await executePayout(payoutId)
+  } catch (execError) {
+    // Exception thrown — revert to FAILED (atomic guard)
+    await admin
+      .from('payouts')
+      .update({ status: 'FAILED' })
+      .eq('id', payoutId)
+      .eq('status', 'PROCESSING')
+    return { ok: false, error: `Execution threw: ${String(execError)}` }
+  }
   if (!execResult.ok) {
     // Mark back as FAILED (atomic guard)
     await admin
