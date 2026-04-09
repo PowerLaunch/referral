@@ -101,7 +101,6 @@ export async function restoreReferral(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
-  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
   if (!dispute.referral_id) return { ok: false, error: 'No referral linked to this dispute' }
 
   const referralId = dispute.referral_id as string
@@ -117,8 +116,10 @@ export async function restoreReferral(
 
   const beforeReferralStatus = referral.status as string
 
-  // Resolve dispute FIRST (same pattern as adjustPayout)
-  const { error: dispError } = await admin
+  // Resolve dispute FIRST (same pattern as adjustPayout).
+  // Atomic status guard: .neq('status', 'RESOLVED') ensures only the first
+  // concurrent request succeeds — eliminates TOCTOU race condition.
+  const { data: updatedDispute, error: dispError } = await admin
     .from('disputes')
     .update({
       status: 'RESOLVED',
@@ -126,8 +127,11 @@ export async function restoreReferral(
       resolved_at: new Date().toISOString(),
     })
     .eq('id', disputeId)
+    .neq('status', 'RESOLVED')
+    .select('id')
 
   if (dispError) return { ok: false, error: `Failed to resolve dispute: ${dispError.message}` }
+  if (!updatedDispute || updatedDispute.length === 0) return { ok: false, error: 'Dispute is already resolved' }
 
   // Restore referral to PENDING AFTER dispute is resolved
   const { error: refError } = await admin
@@ -187,12 +191,13 @@ export async function adjustPayout(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
-  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
 
   const userId = dispute.user_id as string
 
-  // Resolve dispute FIRST to prevent double-payout on retry
-  const { error: dispError } = await admin
+  // Resolve dispute FIRST to prevent double-payout on retry.
+  // Atomic status guard: .neq('status', 'RESOLVED') ensures only the first
+  // concurrent request succeeds — eliminates TOCTOU race condition.
+  const { data: updatedDispute, error: dispError } = await admin
     .from('disputes')
     .update({
       status: 'RESOLVED',
@@ -200,8 +205,11 @@ export async function adjustPayout(
       resolved_at: new Date().toISOString(),
     })
     .eq('id', disputeId)
+    .neq('status', 'RESOLVED')
+    .select('id')
 
   if (dispError) return { ok: false, error: `Failed to resolve dispute: ${dispError.message}` }
+  if (!updatedDispute || updatedDispute.length === 0) return { ok: false, error: 'Dispute is already resolved' }
 
   // Award credits AFTER dispute is resolved
   try {
