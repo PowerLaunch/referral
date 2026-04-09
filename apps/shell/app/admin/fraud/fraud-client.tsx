@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { resolveFraudFlag } from './actions'
-import { toggleCashoutsPaused, toggleReferralConfirmationsPaused } from '../actions'
+import { KillSwitches } from '../components/kill-switches'
 
 // --- Types ---
 
@@ -395,11 +395,8 @@ function SybilClustersTab() {
 // --- Circuit Breakers Tab ---
 
 function CircuitBreakersTab() {
-  const [cashoutsPaused, setCashoutsPaused] = useState<boolean | null>(null)
-  const [refPaused, setRefPaused] = useState<boolean | null>(null)
+  const [config, setConfig] = useState<{ cashouts_paused: boolean; referral_confirmations_paused: boolean } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [confirmAction, setConfirmAction] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -407,8 +404,7 @@ function CircuitBreakersTab() {
         const res = await fetch('/api/admin/config')
         if (res.ok) {
           const data = (await res.json()) as { config: { cashouts_paused: boolean; referral_confirmations_paused: boolean } }
-          setCashoutsPaused(data.config.cashouts_paused)
-          setRefPaused(data.config.referral_confirmations_paused)
+          setConfig(data.config)
         }
       } catch {
         // silent
@@ -419,119 +415,14 @@ function CircuitBreakersTab() {
     void load()
   }, [])
 
-  async function handleToggleCashouts() {
-    setActionLoading('cashouts')
-    try {
-      const result = await toggleCashoutsPaused()
-      setCashoutsPaused(result.paused)
-    } catch {
-      // silent
-    } finally {
-      setActionLoading(null)
-      setConfirmAction(null)
-    }
-  }
-
-  async function handleToggleRef() {
-    setActionLoading('ref')
-    try {
-      const result = await toggleReferralConfirmationsPaused()
-      setRefPaused(result.paused)
-    } catch {
-      // silent
-    } finally {
-      setActionLoading(null)
-      setConfirmAction(null)
-    }
-  }
-
   if (loading) return <p className="text-muted-foreground">Loading circuit breaker state...</p>
+  if (!config) return <p className="text-muted-foreground">Failed to load circuit breaker state</p>
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-        <h2 className="text-lg font-semibold">Circuit Breakers</h2>
-        <p className="text-sm text-muted-foreground">
-          Kill switches for emergency fraud response. Toggling these affects all users immediately.
-        </p>
-
-        <div className="flex flex-wrap gap-4">
-          {/* Cashouts */}
-          <div className="rounded-lg border border-border p-4 space-y-2 min-w-[250px]">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">All Cashouts</span>
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                cashoutsPaused
-                  ? 'bg-red-100 text-red-700 dark:bg-red-950/30'
-                  : 'bg-green-100 text-green-700 dark:bg-green-950/30'
-              }`}>
-                {cashoutsPaused ? 'PAUSED' : 'ACTIVE'}
-              </span>
-            </div>
-            {confirmAction === 'cashouts' ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleToggleCashouts}
-                  disabled={actionLoading === 'cashouts'}
-                  className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground"
-                >
-                  {actionLoading === 'cashouts' ? 'Saving...' : 'Confirm'}
-                </button>
-                <button onClick={() => setConfirmAction(null)} className="rounded-md border border-border px-3 py-1.5 text-sm">Cancel</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmAction('cashouts')}
-                className={`rounded-md px-4 py-2 text-sm font-bold ${
-                  cashoutsPaused
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {cashoutsPaused ? 'RESUME' : 'PAUSE'}
-              </button>
-            )}
-          </div>
-
-          {/* Referral Confirmations */}
-          <div className="rounded-lg border border-border p-4 space-y-2 min-w-[250px]">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">Referral Confirmations</span>
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                refPaused
-                  ? 'bg-red-100 text-red-700 dark:bg-red-950/30'
-                  : 'bg-green-100 text-green-700 dark:bg-green-950/30'
-              }`}>
-                {refPaused ? 'PAUSED' : 'ACTIVE'}
-              </span>
-            </div>
-            {confirmAction === 'ref' ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleToggleRef}
-                  disabled={actionLoading === 'ref'}
-                  className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground"
-                >
-                  {actionLoading === 'ref' ? 'Saving...' : 'Confirm'}
-                </button>
-                <button onClick={() => setConfirmAction(null)} className="rounded-md border border-border px-3 py-1.5 text-sm">Cancel</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmAction('ref')}
-                className={`rounded-md px-4 py-2 text-sm font-bold ${
-                  refPaused
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {refPaused ? 'RESUME' : 'PAUSE'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <KillSwitches
+      cashoutsPaused={config.cashouts_paused}
+      referralConfirmationsPaused={config.referral_confirmations_paused}
+    />
   )
 }
 

@@ -224,8 +224,14 @@ export async function batchApproveLowRisk(
       }
 
       // Execute payout stub
+      const previousStatus = payout.status as string
       const execResult = await executePayout(payoutId)
       if (!execResult.ok) {
+        // Revert to previous status on execution failure
+        await admin
+          .from('payouts')
+          .update({ status: previousStatus })
+          .eq('id', payoutId)
         errors.push(`${payoutId}: execution failed`)
         skipped++
         continue
