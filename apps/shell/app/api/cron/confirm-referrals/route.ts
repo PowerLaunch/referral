@@ -61,25 +61,56 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 3 — Fetch eligible referrals
-  const { data: pendingReferrals, error: referralsError } = await adminClient
+  // Capture timestamp once so both batch queries use the same cutoff
+  const batchNow = new Date().toISOString()
+
+  // Batch 1: standard referrals past lock period
+  const { data: standardReferrals, error: standardError } = await adminClient
     .from('referrals')
     .select('*')
     .eq('status', 'PENDING')
-    .lte('payout_eligible_at', new Date().toISOString())
+    .lte('payout_eligible_at', batchNow)
     .eq('lock_timer_frozen', false)
     .limit(10000)
   // Explicit limit above PostgREST default (1000) to prevent silent truncation.
   // TODO Phase 8: Replace with cursor-based pagination for datasets > 10000 rows.
 
-  if (referralsError) {
-    console.error('Failed to fetch pending referrals:', referralsError)
+  if (standardError) {
+    console.error('Failed to fetch pending referrals:', standardError)
     return Response.json(
       { error: 'Failed to fetch pending referrals' },
       { status: 500 }
     )
   }
 
-  if (!pendingReferrals || pendingReferrals.length === 0) {
+  // Batch 2: influencer referrals that may bypass lock period
+  // Join influencer_codes at the DB level to avoid N+1 queries in the loop
+  const { data: influencerReferrals, error: influencerError } = await adminClient
+    .from('referrals')
+    .select('*, influencer_codes!inner(lock_bypass, active)')
+    .eq('status', 'PENDING')
+    .eq('lock_timer_frozen', false)
+    .gt('payout_eligible_at', batchNow)
+    .eq('influencer_codes.lock_bypass', true)
+    .eq('influencer_codes.active', true)
+    .limit(10000)
+
+  if (influencerError) {
+    console.error('Failed to fetch influencer referrals:', influencerError)
+    // Non-fatal: continue with standard referrals only
+  }
+
+  // Merge and dedup
+  const seenIds = new Set<string>()
+  const pendingReferrals: typeof standardReferrals = []
+  for (const r of [...(standardReferrals ?? []), ...(influencerReferrals ?? [])]) {
+    if (!seenIds.has(r.id)) {
+      seenIds.add(r.id)
+      pendingReferrals.push(r)
+    }
+  }
+
+  if (pendingReferrals.length === 0) {
     return Response.json({
       processed: 0,
       confirmed: 0,
@@ -95,6 +126,24 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   for (const referral of pendingReferrals) {
     try {
+      // --- Criterion -1: Influencer lock_bypass check ---
+      // Influencer lock_bypass: skips payout_eligible_at but enforces all other confirmation criteria
+      const lockPeriodPassed = new Date(referral.payout_eligible_at) <= new Date()
+      if (!lockPeriodPassed) {
+        if (!referral.influencer_code_id) {
+          console.log(
+            `Referral ${referral.id} skipped: lock period not passed and no influencer code`
+          )
+          skipped++
+          continue
+        }
+
+        // lock_bypass + active already verified by Batch 2 DB join
+        console.log(
+          `Referral ${referral.id}: influencer lock_bypass eligible, checking remaining criteria`
+        )
+      }
+
       // --- Criterion 0: Payment collateralization (added in 3-B-patch) ---
       // The referee's subscription payment must be settled and past the
       // 48-hour refund window before any referral can confirm against it.
@@ -367,6 +416,28 @@ export async function GET(request: NextRequest): Promise<Response> {
         )
         errors++
         continue
+      }
+
+      // Log influencer lock bypass only on successful confirmation
+      // Audit log failure is non-critical — should not corrupt confirmed count or block email
+      if (!lockPeriodPassed && referral.influencer_code_id) {
+        try {
+          await adminClient.from('admin_audit_logs').insert({
+            admin_user_id: null,
+            action: 'INFLUENCER_LOCK_BYPASS',
+            target_type: 'referral',
+            target_id: referral.id,
+            details: { influencer_code_id: referral.influencer_code_id },
+          })
+          console.log(
+            `Referral ${referral.id}: influencer lock_bypass applied`
+          )
+        } catch (auditError) {
+          console.error(
+            `Referral ${referral.id}: lock_bypass audit log failed:`,
+            auditError
+          )
+        }
       }
 
       // iii) Fire in-game bonus
