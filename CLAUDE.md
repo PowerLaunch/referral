@@ -103,3 +103,4 @@ After opening a PR, if BugBot leaves review comments:
 - Branch naming: feat/[short-description], fix/[short-description], chore/[short-description]
 - Commit messages: concise, imperative mood
 - One PR per feature/fix
+- All new branches must be based off main. Never branch from feat/scaffold or any other feature branch.
