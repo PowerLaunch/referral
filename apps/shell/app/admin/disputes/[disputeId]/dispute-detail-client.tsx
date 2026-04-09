@@ -251,6 +251,7 @@ export default function DisputeDetailClient({ disputeId }: { disputeId: string }
                       value={adjustAmount}
                       onChange={(e) => setAdjustAmount(Number(e.target.value))}
                       min={1}
+                      step={1}
                       className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
                   </div>

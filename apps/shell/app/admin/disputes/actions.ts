@@ -148,7 +148,7 @@ export async function restoreReferral(
   // Restore referral to PENDING AFTER dispute is resolved
   const { error: refError } = await admin
     .from('referrals')
-    .update({ status: 'PENDING' })
+    .update({ status: 'PENDING', lock_timer_frozen: false })
     .eq('id', referralId)
 
   if (refError) {
@@ -192,6 +192,7 @@ export async function adjustPayout(
 
   if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Amount must be a positive finite number' }
+  if (!Number.isInteger(amount)) return { ok: false, error: 'Amount must be a whole number' }
 
   const admin = createAdminClient()
 

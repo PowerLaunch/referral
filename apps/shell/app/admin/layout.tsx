@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: '/admin', label: 'Pulse' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/disputes', label: 'Disputes' },
+  { href: '/admin/influencers', label: 'Influencers' },
   { href: '/admin/seed', label: 'Seed Users' },
   { href: '/admin/config', label: 'Config' },
   { href: '/admin/audit', label: 'Audit Log' },
