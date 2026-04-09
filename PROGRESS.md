@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 4 — Fraud & Risk Engine (in progress)
-**Last updated:** 2026-04-07
-**Last Completed PR:** 4-D (feat/fraud-middleware)
-**Next PR:** 5-A (feat/onramp)
-**Overall Progress:** 15 / 35 PRs complete
+**Phase:** Phase 7 — Admin Panel (in progress)
+**Last updated:** 2026-04-09
+**Last Completed PR:** 7-A/7-B/7-I (feat/admin-foundation)
+**Next PR:** 7-C (feat/admin-users)
+**Overall Progress:** 22 / 35 PRs complete
 
 ---
 
@@ -158,6 +158,11 @@ Complete these before starting PR 5-A:
 | 4-B | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
 | 4-C | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
 | 4-D | feat/fraud-middleware | — | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
+| 6-A | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Earnings progress stepper & metrics bar (combined into 6-A–6-E) |
+| 6-B | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Payout section with method selector, fee transparency, history |
+| 6-C | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Share tools: referral link copy, WhatsApp, Telegram deep links |
+| 6-D | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Dispute form + disputes table migration |
+| 6-E | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Landing page referral earnings calculator |
 | — | fix/session-diversity | #21 | OPEN | 2026-04-08 | Session diversity: min 3 gameplay sessions for referral confirmation |
 | 7-A/7-B/7-I | feat/admin-foundation | #22 | OPEN | 2026-04-08 | Admin foundation: auth guard, pulse dashboard, kill switches, config editor, audit log, seed users |
 
@@ -196,3 +201,5 @@ Complete these before starting PR 5-A:
 | 2026-04-07 | feat/fraud-middleware | PR #17 merged | feat: fraud middleware integration (PR 4-D) |
 | 2026-04-07 | chore/claude-code-config | PR #18 merged | chore: add CLAUDE.md and update .cursorrules |
 | 2026-04-08 | fix/referral-honeymoon | PR #19 merged | feat: 14-day honeymoon cooldown after first referral |
+| 2026-04-08 | feat/user-dashboard | PR 6-A–6-E | Combined user dashboard PR |
+| 2026-04-08 | feat/user-dashboard | PR #20 merged | feat: complete user dashboard (PR 6-A through 6-E) |

@@ -133,6 +133,7 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
+
     // Guard B — Payout hold
     // payout_hold is set by R1 spike detection. Cleared by admin in Phase 7.
     if (profile.payout_hold) {
@@ -339,7 +340,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: getDisplayPayoutStatus(rawStatus, 'ACTIVE'),
+      status: getDisplayPayoutStatus(rawStatus, profile.status as string),
     })
   } catch (error) {
     console.error('Payout request error:', error)

@@ -27,6 +27,27 @@ export function getDisplayStatus(
 }
 
 /**
+ * Map internal referral status to user-facing display string.
+ * Shadow review: VOIDED displays as 'Rejected' (no fraud language).
+ * @param actualStatus - Internal status from referrals.status column
+ * @returns User-facing referral status string
+ */
+export function getDisplayReferralStatus(actualStatus: string): string {
+  switch (actualStatus) {
+    case 'PENDING':
+      return 'Pending'
+    case 'CONFIRMED':
+      return 'Confirmed'
+    case 'REJECTED':
+      return 'Rejected'
+    case 'VOIDED':
+      return 'Rejected' // Shadow: hide voiding from user
+    default:
+      return 'Pending'
+  }
+}
+
+/**
  * Map internal payout status to user-facing display string.
  * If user is under shadow review (REVIEW_HOLD or FROZEN), always return 'Verifying'
  * regardless of actual payout status.

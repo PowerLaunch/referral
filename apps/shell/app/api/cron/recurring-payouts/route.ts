@@ -37,6 +37,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // internal credits, not cash outflows. The kill switch blocks actual payouts
   // in payout/request/route.ts.
 
+
   // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()
   // rewardMonth is the month that just ended (prior to cron run).

@@ -13,7 +13,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const admin = createAdminClient()
 
-  // Fetch audit logs with pagination
+  // Fetch limit+1 rows to detect next page — .range() uses inclusive bounds,
+  // so .range(offset, offset + limit) returns limit+1 rows when available.
   const { data: logs, error } = await admin
     .from('admin_audit_logs')
     .select('id, admin_user_id, action, target_type, target_id, before_value, after_value, reason, details, created_at')
@@ -24,7 +25,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
   }
 
-  // Fetch limit+1 rows to detect next page, but only return limit rows
   const allRows = logs ?? []
   const hasMore = allRows.length > limit
   const pageRows = allRows.slice(0, limit)
