@@ -6,8 +6,6 @@ import { updateGameConfig } from '../actions'
 interface GameConfig {
   min_gameplay_minutes: number
   min_session_count: number | null
-  signup_bonus_amount: number
-  signup_bonus_label: string
   cashouts_paused: boolean
   referral_confirmations_paused: boolean
 }
@@ -21,8 +19,6 @@ export default function ConfigClient() {
   // Form state
   const [minGameplayMinutes, setMinGameplayMinutes] = useState(10)
   const [minSessionCount, setMinSessionCount] = useState(3)
-  const [signupBonusAmount, setSignupBonusAmount] = useState(0)
-  const [signupBonusLabel, setSignupBonusLabel] = useState('credits')
 
   const fetchConfig = useCallback(async () => {
     setLoading(true)
@@ -33,8 +29,6 @@ export default function ConfigClient() {
         setConfig(data.config)
         setMinGameplayMinutes(data.config.min_gameplay_minutes)
         setMinSessionCount(data.config.min_session_count ?? 3)
-        setSignupBonusAmount(data.config.signup_bonus_amount)
-        setSignupBonusLabel(data.config.signup_bonus_label)
       }
     } catch {
       // Silently fail
@@ -56,8 +50,6 @@ export default function ConfigClient() {
       const result = await updateGameConfig({
         min_gameplay_minutes: minGameplayMinutes,
         min_session_count: minSessionCount,
-        signup_bonus_amount: signupBonusAmount,
-        signup_bonus_label: signupBonusLabel,
       })
 
       if (result.ok) {
@@ -111,29 +103,6 @@ export default function ConfigClient() {
                 value={minSessionCount}
                 onChange={(e) => setMinSessionCount(Number(e.target.value))}
                 min={0}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Signup Bonus Amount
-              </label>
-              <input
-                type="number"
-                value={signupBonusAmount}
-                onChange={(e) => setSignupBonusAmount(Number(e.target.value))}
-                min={0}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">
-                Signup Bonus Label
-              </label>
-              <input
-                type="text"
-                value={signupBonusLabel}
-                onChange={(e) => setSignupBonusLabel(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
