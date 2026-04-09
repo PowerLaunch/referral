@@ -232,6 +232,8 @@ interface ConfigUpdate {
 export async function updateGameConfig(
   updates: ConfigUpdate
 ): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+
   if (updates.min_gameplay_minutes !== undefined && updates.min_gameplay_minutes < 1) {
     return { ok: false, error: 'min_gameplay_minutes must be at least 1' }
   }
@@ -239,7 +241,6 @@ export async function updateGameConfig(
     return { ok: false, error: 'min_session_count must be at least 1' }
   }
 
-  const adminId = await requireAdmin()
   const admin = createAdminClient()
 
   // Read current values for audit log
