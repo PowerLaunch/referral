@@ -5,6 +5,7 @@
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerE2 } from '@referral/api/email'
+import { getUserRiskScore, getRiskCategory } from '@referral/api/riskScore'
 
 export async function GET(request: NextRequest): Promise<Response> {
   // Step 1 — Auth check
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Read at runtime, never hardcode — spec Section 2.1
   const { data: gameConfig, error: configError } = await adminClient
     .from('game_config')
-    .select('min_gameplay_minutes')
+    .select('min_gameplay_minutes, referral_confirmations_paused')
     .limit(1)
     .single()
 
@@ -43,6 +44,19 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const minGameplayMinutes = gameConfig?.min_gameplay_minutes ?? 10
+
+  // Circuit breaker check: if referral confirmations are paused, exit early
+  if (gameConfig?.referral_confirmations_paused) {
+    console.log('Referral confirmations paused by circuit breaker — exiting')
+    return Response.json({
+      ok: true,
+      message: 'Paused by circuit breaker',
+      processed: 0,
+      confirmed: 0,
+      skipped: 0,
+      errors: 0,
+    })
+  }
 
   // Step 3 — Fetch eligible referrals
   const { data: pendingReferrals, error: referralsError } = await adminClient
@@ -216,13 +230,30 @@ export async function GET(request: NextRequest): Promise<Response> {
         continue
       }
 
-      // d) Check fraud flags (STUB)
-      // TODO: wire to fraud engine in PR 4-D. Check getUserRiskScore() >= 100.
-      const fraudCheckPassed = true
-      // For now, always passes. Remove this stub in Phase 4.
+      // d) Check fraud score (PR 4-D)
+      // Get risk score for referee. CRITICAL (100+) and HIGH (61-99) referrals
+      // stay PENDING and are re-checked on next cron run. When an admin resolves
+      // flags (is_resolved = true in Phase 7), score drops and confirmation proceeds.
+      const riskScore = await getUserRiskScore(referral.referee_id)
+      const riskCategory = getRiskCategory(riskScore)
 
-      if (!fraudCheckPassed) {
-        console.log(`Referral ${referral.id} skipped: Fraud check failed`)
+      if (riskCategory === 'CRITICAL') {
+        console.log(
+          `Referral ${referral.id} skipped: Referee risk score CRITICAL (${riskScore})`
+        )
+        skipped++
+        continue
+      }
+
+      if (riskCategory === 'HIGH') {
+        // HIGH risk (61-99): skip confirmation, leave PENDING for admin review.
+        // Do NOT insert a tracking flag — it would inflate the risk score by +10
+        // on the next cron run, causing unintended escalation to CRITICAL.
+        // The underlying flags that caused the HIGH score are already visible
+        // in the admin fraud dashboard.
+        console.log(
+          `Referral ${referral.id} skipped: Referee risk score HIGH (${riskScore}) — pending review`
+        )
         skipped++
         continue
       }

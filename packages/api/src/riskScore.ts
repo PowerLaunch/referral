@@ -2,8 +2,10 @@ import { getAdminClient } from './credits'
 
 // Risk score is always computed fresh from fraud_flags — never cached or stored
 // as a column. This ensures score reflects current state after admin resolutions.
-// All flags count toward score regardless of is_resolved status.
+// Only unresolved flags count toward score. Resolved flags (is_resolved = true)
+// are excluded so admin flag resolution in Phase 7 can unblock referral confirmations.
 
+// Called by confirmation cron fraud check (PR 4-D) and admin dashboard (PR 7-C)
 /**
  * Get risk score for a user by summing severity scores of all fraud flags.
  * Risk score is always computed fresh — never cached or stored as a column.
@@ -15,6 +17,7 @@ export async function getUserRiskScore(userId: string): Promise<number> {
     .from('fraud_flags')
     .select('severity')
     .eq('user_id', userId)
+    .eq('is_resolved', false)
 
   if (error) {
     console.error(`Risk score query failed for user ${userId}:`, error.message)
@@ -37,9 +40,12 @@ export async function getUserRiskScore(userId: string): Promise<number> {
   return total
 }
 
+// Called by confirmation cron fraud check (PR 4-D) and admin cashout review (PR 7-D)
 /**
  * Get risk category from numeric risk score.
- * Spec Section 6.4: LOW 0-30, MEDIUM 31-60, HIGH 61-100, CRITICAL 100+
+ * Score ranges per spec Section 6.4:
+ * LOW: 0-30, MEDIUM: 31-60, HIGH: 61-99, CRITICAL: 100+
+ * Note: score of exactly 100 is CRITICAL, not HIGH.
  * @param score - Numeric risk score
  * @returns Risk category
  */
@@ -50,7 +56,6 @@ export function getRiskCategory(
   if (score <= 60) return 'MEDIUM'
   if (score < 100) return 'HIGH'
   return 'CRITICAL'
-  // Note: score of exactly 100 is CRITICAL per spec Section 6.4 (100+ = CRITICAL).
 }
 
 /**
@@ -62,7 +67,7 @@ export async function logAdminAction(params: {
   adminUserId: string | null
   action: string
   targetType: string
-  targetId: string
+  targetId: string | null
   beforeValue?: string | null
   afterValue?: string | null
   reason?: string | null

@@ -70,27 +70,41 @@ export async function GET(request: Request) {
             // Calculate lock period
             const lockPeriodDays = getLockPeriodDays(countryCode, vpnDetected)
 
-            // Calculate payout_eligible_at
-            const payoutEligibleAt = new Date()
-            payoutEligibleAt.setDate(
-              payoutEligibleAt.getDate() + lockPeriodDays
-            )
-
-            // Create PENDING referral
-            const { error: referralError } = await adminClient
-              .from('referrals')
-              .insert({
-                referrer_id: referrerProfile.id,
-                referee_id: user.id,
-                referral_code: referralCode,
-                status: 'PENDING',
-                payout_eligible_at: payoutEligibleAt.toISOString(),
-                country_code: countryCode,
-                lock_timer_frozen: false,
+            // Atomic honeymoon check + referral insert via RPC.
+            // Advisory lock prevents TOCTOU race on concurrent signups.
+            const { data: honeymoonResult, error: honeymoonError } =
+              await adminClient.rpc('create_referral_with_honeymoon', {
+                p_referrer_id: referrerProfile.id,
+                p_referee_id: user.id,
+                p_referral_code: referralCode,
+                p_lock_period_days: lockPeriodDays,
+                p_country_code: countryCode,
               })
 
-            if (referralError) {
-              console.error('Failed to create referral:', referralError)
+            if (honeymoonError) {
+              console.error('Honeymoon referral insert failed:', honeymoonError)
+              // Fail open: insert referral directly without honeymoon check.
+              // A connection blip or lock timeout should not silently drop the referral.
+              const payoutEligibleAt = new Date()
+              payoutEligibleAt.setDate(payoutEligibleAt.getDate() + lockPeriodDays)
+              const { error: fallbackError } = await adminClient
+                .from('referrals')
+                .insert({
+                  referrer_id: referrerProfile.id,
+                  referee_id: user.id,
+                  referral_code: referralCode,
+                  status: 'PENDING',
+                  payout_eligible_at: payoutEligibleAt.toISOString(),
+                  country_code: countryCode,
+                  lock_timer_frozen: false,
+                })
+              if (fallbackError) {
+                console.error('Fallback referral insert also failed:', fallbackError)
+              }
+            } else if (honeymoonResult && !honeymoonResult.created) {
+              console.log(
+                `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${honeymoonResult.unlocks_at}`
+              )
             }
           }
         }

@@ -6,10 +6,10 @@
 
 ## Current Status
 **Phase:** Phase 4 — Fraud & Risk Engine (in progress)
-**Last updated:** 2026-04-05
-**Last Completed PR:** 4-A (feat/risk-scoring)
-**Next PR:** 4-B (feat/fraud-rules-r1-r6)
-**Overall Progress:** 11 / 35 PRs complete
+**Last updated:** 2026-04-07
+**Last Completed PR:** 4-D (feat/fraud-middleware)
+**Next PR:** 5-A (feat/onramp)
+**Overall Progress:** 15 / 35 PRs complete
 
 ---
 
@@ -147,14 +147,19 @@ Complete these before starting PR 5-A:
 
 ## PR LOG
 
-| PR ID | Branch | Status | Date | Description |
-|-------|--------|--------|------|-------------|
-| 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
-| 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
-| 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
-| 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
-| 3-D | feat/payout-workflow | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
-| 4-A | feat/risk-scoring | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| PR ID | Branch | GitHub PR# | Status | Date | Description |
+|-------|--------|-----------|--------|------|-------------|
+| 1-A | feat/project-setup | — | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
+| 1-B | feat/database-schema | — | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
+| 1-C | feat/auth | — | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
+| 2-B | feat/shell-app | — | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
+| 3-D | feat/payout-workflow | — | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
+| 4-A | feat/risk-scoring | — | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 4-B | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
+| 4-C | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
+| 4-D | feat/fraud-middleware | — | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
+| — | fix/session-diversity | #21 | OPEN | 2026-04-08 | Session diversity: min 3 gameplay sessions for referral confirmation |
+| 7-A/7-B/7-I | feat/admin-foundation | #22 | OPEN | 2026-04-08 | Admin foundation: auth guard, pulse dashboard, kill switches, config editor, audit log, seed users |
 
 ---
 
@@ -182,5 +187,12 @@ Complete these before starting PR 5-A:
 | 2026-04-04 | feat/maturity-checkpoint | PR 3-C | Maturity checkpoint: freeze/unfreeze RPCs, webhook stub |
 | 2026-04-04 | feat/maturity-checkpoint | PR #12 merged | PR 3-C: Maturity checkpoint (freeze/unfreeze referral lock timers) |
 | 2026-04-05 | feat/referral-confirmation-patch | PR 3-B-patch | Payment collateral check, voidPendingCredits, fraud void hook |
-| 2026-04-05 | feat/payout-workflow | 3-D | Payout request, failure handler, recurring cron, frozen guard | — |
-| 2026-04-05 | 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables | — |
+| 2026-04-05 | feat/referral-confirmation-patch | PR #13 merged | PR 3-B-patch: Payment collateralization and credit voiding |
+| 2026-04-05 | feat/payout-workflow | PR 3-D | Payout request, failure handler, recurring cron, frozen guard |
+| 2026-04-05 | feat/risk-scoring | PR 4-A | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 2026-04-06 | feat/fraud-rules-r1-r7 | PR 4-B/4-C (combined) | All fraud rules R1–R7, KYC hashing, shadow review status mapping, 15-min fraud scan cron |
+| 2026-04-07 | feat/fraud-rules-r1-r7 | PR #16 merged | feat: Fraud rules R1-R7, KYC hashing, shadow review (PR 4-B/4-C combined) |
+| 2026-04-07 | feat/fraud-middleware | PR 4-D | Fraud middleware, chargeback handler, fraud scoring in confirmation cron, circuit breaker check |
+| 2026-04-07 | feat/fraud-middleware | PR #17 merged | feat: fraud middleware integration (PR 4-D) |
+| 2026-04-07 | chore/claude-code-config | PR #18 merged | chore: add CLAUDE.md and update .cursorrules |
+| 2026-04-08 | fix/referral-honeymoon | PR #19 merged | feat: 14-day honeymoon cooldown after first referral |

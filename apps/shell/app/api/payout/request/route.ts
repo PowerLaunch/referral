@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
 import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
+import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -86,10 +87,24 @@ export async function POST(request: Request): Promise<Response> {
 
     // Step 3 — Guards
 
+    // Guard 0 — Kill switch: cashouts_paused
+    const { data: gameConfig } = await adminClient
+      .from('game_config')
+      .select('cashouts_paused')
+      .limit(1)
+      .single()
+
+    if (gameConfig?.cashouts_paused) {
+      return Response.json(
+        { error: 'Payouts are temporarily paused. Please try again later.' },
+        { status: 503 }
+      )
+    }
+
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('trust_level, created_at')
+      .select('trust_level, created_at, payout_hold, status')
       .eq('id', user.id)
       .single()
 
@@ -109,6 +124,23 @@ export async function POST(request: Request): Promise<Response> {
     }
     // SUSPICIOUS users are blocked from payouts at both middleware
     // and route level (belt-and-suspenders). Shadow review — user sees generic message.
+
+    // Defense-in-depth: block REVIEW_HOLD even if middleware missed it
+    if (profile.status === 'REVIEW_HOLD') {
+      return Response.json(
+        { error: 'Payouts are temporarily restricted' },
+        { status: 403 }
+      )
+    }
+
+    // Guard B — Payout hold
+    // payout_hold is set by R1 spike detection. Cleared by admin in Phase 7.
+    if (profile.payout_hold) {
+      return Response.json(
+        { error: 'Payouts are temporarily on hold for this account' },
+        { status: 403 }
+      )
+    }
 
     // Guard C — Active subscription
     const { data: subscription, error: subError } = await adminClient
@@ -296,11 +328,18 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Payout creation failed' }, { status: 500 })
     }
 
+    // NOTE: This payout is now PENDING or PENDING_MANUAL_APPROVAL.
+    // It will not be executed (funds sent) until:
+    // 1. 24-hour staging window passes (isPayoutStagingComplete check in PR 5-B)
+    // 2. Admin approves (if first payout)
+    // The 15-minute fraud cron runs multiple times in this window.
+
     // Step 6 — Return success
+    const rawStatus = isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING',
+      status: getDisplayPayoutStatus(rawStatus, 'ACTIVE'),
     })
   } catch (error) {
     console.error('Payout request error:', error)
