@@ -5,11 +5,11 @@
 ---
 
 ## Current Status
-**Phase:** Phase 6 — User Dashboard (complete)
-**Last updated:** 2026-04-08
-**Last Completed PR:** 6-E (feat/user-dashboard, combined 6-A through 6-E)
-**Next PR:** 7-A (feat/admin-auth)
-**Overall Progress:** 20 / 35 PRs complete
+**Phase:** Phase 7 — Admin Panel (in progress)
+**Last updated:** 2026-04-09
+**Last Completed PR:** 7-A/7-B/7-I (feat/admin-foundation)
+**Next PR:** 7-C (feat/admin-users)
+**Overall Progress:** 22 / 35 PRs complete
 
 ---
 
@@ -147,22 +147,24 @@ Complete these before starting PR 5-A:
 
 ## PR LOG
 
-| PR ID | Branch | Status | Date | Description |
-|-------|--------|--------|------|-------------|
-| 1-A | feat/project-setup | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
-| 1-B | feat/database-schema | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
-| 1-C | feat/auth | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
-| 2-B | feat/shell-app | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
-| 3-D | feat/payout-workflow | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
-| 4-A | feat/risk-scoring | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
-| 4-B | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
-| 4-C | feat/fraud-rules-r1-r7 | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
-| 4-D | feat/fraud-middleware | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
-| 6-A | feat/user-dashboard | COMPLETE | 2026-04-08 | Earnings progress stepper & metrics bar (combined into 6-A–6-E) |
-| 6-B | feat/user-dashboard | COMPLETE | 2026-04-08 | Payout section with method selector, fee transparency, history |
-| 6-C | feat/user-dashboard | COMPLETE | 2026-04-08 | Share tools: referral link copy, WhatsApp, Telegram deep links |
-| 6-D | feat/user-dashboard | COMPLETE | 2026-04-08 | Dispute form + disputes table migration |
-| 6-E | feat/user-dashboard | COMPLETE | 2026-04-08 | Landing page referral earnings calculator |
+| PR ID | Branch | GitHub PR# | Status | Date | Description |
+|-------|--------|-----------|--------|------|-------------|
+| 1-A | feat/project-setup | — | COMPLETE | 2026-03-27 | Turborepo monorepo setup |
+| 1-B | feat/database-schema | — | COMPLETE | 2026-03-27 | Phase 1 tables + RLS + indexes |
+| 1-C | feat/auth | — | COMPLETE | 2026-03-28 | Auth, signup, login, email verification, middleware |
+| 2-B | feat/shell-app | — | COMPLETE | 2026-04-02 | Shell game: daily puzzle, heartbeat, gameplay tracking |
+| 3-D | feat/payout-workflow | — | COMPLETE | 2026-04-05 | Payout request, failure handler, recurring cron, frozen guard |
+| 4-A | feat/risk-scoring | — | COMPLETE | 2026-04-05 | Risk scoring, fingerprint capture, fraud_flags/admin_audit tables |
+| 4-B | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | Fraud rules R1–R6, 15-min cron (combined with 4-C) |
+| 4-C | feat/fraud-rules-r1-r7 | — | COMPLETE | 2026-04-06 | KYC hashing, R7 Sybil detection, shadow review (combined with 4-B) |
+| 4-D | feat/fraud-middleware | — | COMPLETE | 2026-04-07 | Fraud middleware, chargeback handler, fraud scoring in confirmation cron |
+| 6-A | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Earnings progress stepper & metrics bar (combined into 6-A–6-E) |
+| 6-B | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Payout section with method selector, fee transparency, history |
+| 6-C | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Share tools: referral link copy, WhatsApp, Telegram deep links |
+| 6-D | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Dispute form + disputes table migration |
+| 6-E | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Landing page referral earnings calculator |
+| — | fix/session-diversity | #21 | OPEN | 2026-04-08 | Session diversity: min 3 gameplay sessions for referral confirmation |
+| 7-A/7-B/7-I | feat/admin-foundation | #22 | OPEN | 2026-04-08 | Admin foundation: auth guard, pulse dashboard, kill switches, config editor, audit log, seed users |
 
 ---
 

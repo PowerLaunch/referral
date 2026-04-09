@@ -26,6 +26,8 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-07 | PR 4-D: Referee-side referral freeze on chargeback | BugBot catch — chargeback user as referee was not having their referral frozen | packages/api/src/chargebackHandler.ts |
 | 2026-04-07 | First referral honeymoon window (14-day cooldown after first referral) | Breaks instant mass-invite farming pattern | apps/shell/app/auth/callback/route.ts |
 | 2026-04-08 | PRs 6-A through 6-E combined into single PR (feat/user-dashboard) | All PRs implement user dashboard — combining reduces context switching. disputes table migration included. All status display uses statusDisplay.ts shadow review mapping. | dashboard/page.tsx, dashboard/components/*, dashboard/dispute/page.tsx, page.tsx, migration 20260408000002 |
+| 2026-04-08 | Gameplay session diversity (min 3 sessions) added in fix/session-diversity | Single long session is weaker signal than multiple return visits | migration 20260408000003, confirm-referrals/route.ts |
+| 2026-04-08 | Admin foundation (PR #22 feat/admin-foundation) combines 7-A, 7-B, 7-I plus seed users, kill switch, revenue dashboard, fraud alerts feed, config editor, and audit log | Remaining admin sub-pages (detailed user management, cashout review, fraud clusters, KYC, influencers, disputes) will be separate follow-up PRs | admin/*, api/admin/*, migration 20260408000004, recurring-payouts/route.ts, payout/request/route.ts |
 
 ---
 
