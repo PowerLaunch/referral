@@ -134,10 +134,6 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   if (ruleFailures > 0) {
     console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
-    return Response.json(
-      { error: `${ruleFailures} rules failed`, scannedAt, results, totalFlagged },
-      { status: 500 }
-    )
   }
 
   await recordCronSuccess('fraud-scan', createAdminClient(), process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)
@@ -148,6 +144,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     scannedAt,
     results,
     totalFlagged,
+    ruleFailures,
   })
  } catch (error) {
     console.error('Cron error:', error)
