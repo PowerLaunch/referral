@@ -51,10 +51,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Batch fetch referral counts (as referrer)
+  // Explicit limit above PostgREST default (1000) — max 50 users × many referrals each
   const { data: referralCounts } = await admin
     .from('referrals')
     .select('referrer_id')
     .in('referrer_id', userIds)
+    .limit(10000)
 
   const refCountMap = new Map<string, number>()
   for (const ref of referralCounts ?? []) {
@@ -63,11 +65,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Batch fetch fraud scores (sum of severity points per user)
+  // Explicit limit above PostgREST default (1000) — max 50 users × many flags each
   const { data: fraudFlags } = await admin
     .from('fraud_flags')
     .select('user_id, severity')
     .in('user_id', userIds)
     .eq('is_resolved', false)
+    .limit(10000)
 
   const scoreMap = new Map<string, number>()
   for (const flag of fraudFlags ?? []) {

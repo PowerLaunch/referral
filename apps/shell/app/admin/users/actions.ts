@@ -91,6 +91,7 @@ export async function unfreezeAccount(
     .single()
 
   if (!profile) return { ok: false, error: 'User not found' }
+  if (profile.trust_level !== 'BANNED') return { ok: false, error: 'Can only unfreeze accounts that are currently BANNED' }
 
   const beforeTrust = profile.trust_level as string
 

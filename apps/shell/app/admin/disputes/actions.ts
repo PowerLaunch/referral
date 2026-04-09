@@ -117,15 +117,7 @@ export async function restoreReferral(
 
   const beforeReferralStatus = referral.status as string
 
-  // Restore referral to PENDING
-  const { error: refError } = await admin
-    .from('referrals')
-    .update({ status: 'PENDING' })
-    .eq('id', referralId)
-
-  if (refError) return { ok: false, error: `Failed to restore referral: ${refError.message}` }
-
-  // Resolve dispute
+  // Resolve dispute FIRST (same pattern as adjustPayout)
   const { error: dispError } = await admin
     .from('disputes')
     .update({
@@ -136,6 +128,31 @@ export async function restoreReferral(
     .eq('id', disputeId)
 
   if (dispError) return { ok: false, error: `Failed to resolve dispute: ${dispError.message}` }
+
+  // Restore referral to PENDING AFTER dispute is resolved
+  const { error: refError } = await admin
+    .from('referrals')
+    .update({ status: 'PENDING' })
+    .eq('id', referralId)
+
+  if (refError) {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'RESTORE_REFERRAL_PARTIAL_FAILURE',
+      target_type: 'dispute',
+      target_id: disputeId,
+      details: {
+        admin_notes: adminNotes.trim(),
+        referral_id: referralId,
+        error: refError.message,
+        note: 'Dispute resolved but referral status update failed',
+      },
+    })
+    return {
+      ok: false,
+      error: 'Dispute marked resolved but referral status update failed — check referrals table manually',
+    }
+  }
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
