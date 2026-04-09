@@ -101,17 +101,14 @@ export async function createSeedUser(
   // Generate a unique referral code for the seed user
   const referralCode = `SEED-${userId.slice(0, 8).toUpperCase()}`
 
-  // Insert profile
-  const { error: profileError } = await admin.from('profiles').insert({
-    id: userId,
-    email: input.email,
-    referral_code: referralCode,
-  })
+  // Update profile created by on_auth_user_created trigger
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({ referral_code: referralCode })
+    .eq('id', userId)
 
   if (profileError) {
-    // Cleanup: delete auth user if profile insert fails
-    await admin.auth.admin.deleteUser(userId)
-    return { ok: false, error: `Profile creation failed: ${profileError.message}` }
+    return { ok: false, error: `Profile update failed: ${profileError.message}` }
   }
 
   // Insert subscription if active
@@ -121,7 +118,6 @@ export async function createSeedUser(
       status: 'active',
     })
     if (subError) {
-      await admin.from('profiles').delete().eq('id', userId)
       await admin.auth.admin.deleteUser(userId)
       return { ok: false, error: `Subscription creation failed: ${subError.message}` }
     }
@@ -155,7 +151,6 @@ export async function createSeedUser(
         if (input.subscriptionActive) {
           await admin.from('subscriptions').delete().eq('user_id', userId)
         }
-        await admin.from('profiles').delete().eq('id', userId)
         await admin.auth.admin.deleteUser(userId)
         return { ok: false, error: `Referral creation failed: ${referralError.message}` }
       }
@@ -175,7 +170,6 @@ export async function createSeedUser(
     if (input.subscriptionActive) {
       await admin.from('subscriptions').delete().eq('user_id', userId)
     }
-    await admin.from('profiles').delete().eq('id', userId)
     await admin.auth.admin.deleteUser(userId)
     return { ok: false, error: `Seed user tracking failed: ${seedError.message}` }
   }
@@ -239,6 +233,9 @@ export async function updateGameConfig(
 ): Promise<{ ok: boolean; error?: string }> {
   if (updates.min_gameplay_minutes !== undefined && updates.min_gameplay_minutes < 1) {
     return { ok: false, error: 'min_gameplay_minutes must be at least 1' }
+  }
+  if (updates.min_session_count !== undefined && updates.min_session_count < 1) {
+    return { ok: false, error: 'min_session_count must be at least 1' }
   }
 
   const adminId = await requireAdmin()

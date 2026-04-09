@@ -81,14 +81,10 @@ export async function middleware(request: NextRequest) {
   // Scale note: at >1000 users, consider caching trust_level in a short-TTL
   // cookie (5 min) refreshed on trust_level change.
 
-  // Skip fraud check only for routes that don't use Supabase session auth
-  // (webhooks and crons use their own auth: HMAC signatures or Bearer tokens)
-  const skipFraudCheck =
-    request.nextUrl.pathname.startsWith('/_next/') ||
-    request.nextUrl.pathname.startsWith('/api/webhooks/') ||
-    request.nextUrl.pathname.startsWith('/api/cron/')
-
-  if (!skipFraudCheck) {
+  // Fraud check: runs for all authenticated, non-public routes.
+  // Matcher already excludes _next/static, _next/image, webhooks, and crons,
+  // so no skipFraudCheck conditional is needed here.
+  {
     // Query profiles for fraud status using the same Supabase client
     // from updateSession — shares cookie management, prevents session
     // desynchronization from a second independent client.
