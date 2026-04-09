@@ -84,7 +84,8 @@ export async function middleware(request: NextRequest) {
   // Skip fraud check only for routes that don't use Supabase session auth
   // (webhooks and crons use their own auth: HMAC signatures or Bearer tokens)
   const skipFraudCheck =
-    request.nextUrl.pathname.startsWith('/_next/') ||
+    request.nextUrl.pathname.startsWith('/_next/static/') ||
+    request.nextUrl.pathname.startsWith('/_next/image/') ||
     request.nextUrl.pathname.startsWith('/api/webhooks/') ||
     request.nextUrl.pathname.startsWith('/api/cron/')
 
