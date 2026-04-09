@@ -106,6 +106,17 @@ export async function restoreReferral(
 
   const referralId = dispute.referral_id as string
 
+  // Fetch current referral status for audit log
+  const { data: referral } = await admin
+    .from('referrals')
+    .select('status')
+    .eq('id', referralId)
+    .single()
+
+  if (!referral) return { ok: false, error: 'Referral not found' }
+
+  const beforeReferralStatus = referral.status as string
+
   // Restore referral to PENDING
   const { error: refError } = await admin
     .from('referrals')
@@ -131,7 +142,7 @@ export async function restoreReferral(
     action: 'dispute_restore_referral',
     target_type: 'dispute',
     target_id: disputeId,
-    before_value: JSON.stringify({ status: dispute.status, referral_status: 'previous' }),
+    before_value: JSON.stringify({ status: dispute.status, referral_status: beforeReferralStatus }),
     after_value: JSON.stringify({ status: 'RESOLVED', referral_status: 'PENDING' }),
     details: { admin_notes: adminNotes.trim(), referral_id: referralId },
   })

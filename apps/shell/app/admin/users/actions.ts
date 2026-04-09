@@ -53,6 +53,7 @@ export async function freezeAccount(
     .single()
 
   if (!profile) return { ok: false, error: 'User not found' }
+  if (profile.trust_level === 'BANNED') return { ok: false, error: 'Account is already frozen' }
 
   const beforeTrust = profile.trust_level as string
 
