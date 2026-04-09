@@ -237,6 +237,10 @@ interface ConfigUpdate {
 export async function updateGameConfig(
   updates: ConfigUpdate
 ): Promise<{ ok: boolean; error?: string }> {
+  if (updates.min_gameplay_minutes !== undefined && updates.min_gameplay_minutes < 1) {
+    return { ok: false, error: 'min_gameplay_minutes must be at least 1' }
+  }
+
   const adminId = await requireAdmin()
   const admin = createAdminClient()
 
