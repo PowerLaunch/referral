@@ -416,17 +416,25 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
 
       // Log influencer lock bypass only on successful confirmation
+      // Audit log failure is non-critical — should not corrupt confirmed count or block email
       if (!lockPeriodPassed && referral.influencer_code_id) {
-        await adminClient.from('admin_audit_logs').insert({
-          admin_user_id: null,
-          action: 'INFLUENCER_LOCK_BYPASS',
-          target_type: 'referral',
-          target_id: referral.id,
-          details: { influencer_code_id: referral.influencer_code_id },
-        })
-        console.log(
-          `Referral ${referral.id}: influencer lock_bypass applied`
-        )
+        try {
+          await adminClient.from('admin_audit_logs').insert({
+            admin_user_id: null,
+            action: 'INFLUENCER_LOCK_BYPASS',
+            target_type: 'referral',
+            target_id: referral.id,
+            details: { influencer_code_id: referral.influencer_code_id },
+          })
+          console.log(
+            `Referral ${referral.id}: influencer lock_bypass applied`
+          )
+        } catch (auditError) {
+          console.error(
+            `Referral ${referral.id}: lock_bypass audit log failed:`,
+            auditError
+          )
+        }
       }
 
       // iii) Fire in-game bonus
