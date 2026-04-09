@@ -194,7 +194,19 @@ export async function adjustPayout(
       'CASH_BALANCE',
       `dispute_adjustment:${disputeId}`
     )
-  } catch {
+  } catch (creditError) {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'ADJUST_PAYOUT_PARTIAL_FAILURE',
+      target_type: 'dispute',
+      target_id: disputeId,
+      details: {
+        admin_notes: adminNotes.trim(),
+        amount,
+        error: String(creditError),
+        note: 'Dispute resolved but credit award failed',
+      },
+    })
     return {
       ok: false,
       error: 'Dispute marked resolved but credit award failed — check credit_transactions manually',

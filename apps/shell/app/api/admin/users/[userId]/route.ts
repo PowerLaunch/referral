@@ -10,6 +10,11 @@ export async function GET(
   if (auth instanceof Response) return auth
 
   const { userId } = await params
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    return Response.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
   // Fetch profile

@@ -10,6 +10,7 @@ import {
   unflagSuspicious,
   togglePayoutHold,
 } from '../actions'
+import { riskColor } from '../utils'
 
 interface Profile {
   id: string
@@ -72,12 +73,6 @@ function severityColor(severity: string): string {
     default:
       return 'bg-blue-100 text-blue-700 dark:bg-blue-950/30'
   }
-}
-
-function riskColor(score: number): string {
-  if (score >= 61) return 'text-red-600 font-bold'
-  if (score >= 31) return 'text-yellow-600 font-semibold'
-  return 'text-green-600'
 }
 
 export default function UserDetailClient({ userId }: { userId: string }) {

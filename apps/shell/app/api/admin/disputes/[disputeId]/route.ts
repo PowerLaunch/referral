@@ -10,6 +10,11 @@ export async function GET(
   if (auth instanceof Response) return auth
 
   const { disputeId } = await params
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(disputeId)) {
+    return Response.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
   const { data: dispute, error } = await admin

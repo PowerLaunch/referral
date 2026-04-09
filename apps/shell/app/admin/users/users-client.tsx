@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { riskColor } from './utils'
 
 interface UserRow {
   id: string
@@ -14,12 +15,6 @@ interface UserRow {
   referral_count: number
   risk_score: number
   created_at: string
-}
-
-function riskColor(score: number): string {
-  if (score >= 61) return 'text-red-600 font-bold'
-  if (score >= 31) return 'text-yellow-600 font-semibold'
-  return 'text-green-600'
 }
 
 function trustBadge(level: string): { text: string; className: string } {
