@@ -349,13 +349,15 @@ export default function CashoutsClient() {
                     {showActions && (
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(p.id)}
-                            disabled={actionLoading === p.id}
-                            className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
+                          {activeTab !== 'PROCESSING' && (
+                            <button
+                              onClick={() => handleApprove(p.id)}
+                              disabled={actionLoading === p.id}
+                              className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                          )}
                           <button
                             onClick={() => { setRejectDialogId(p.id); setRejectReason(REJECTION_REASONS[0]); setReturnCredits(true) }}
                             disabled={actionLoading === p.id}

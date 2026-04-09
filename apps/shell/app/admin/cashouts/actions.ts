@@ -50,11 +50,12 @@ export async function approvePayout(
   // Execute payout (stub — marks COMPLETED for now)
   const execResult = await executePayout(payoutId)
   if (!execResult.ok) {
-    // Revert to previous status on execution failure
+    // Revert to previous status on execution failure (atomic guard)
     await admin
       .from('payouts')
       .update({ status: beforeStatus })
       .eq('id', payoutId)
+      .eq('status', 'PROCESSING')
     return { ok: false, error: `Execution failed: ${execResult.error}` }
   }
 
@@ -227,11 +228,12 @@ export async function batchApproveLowRisk(
       const previousStatus = payout.status as string
       const execResult = await executePayout(payoutId)
       if (!execResult.ok) {
-        // Revert to previous status on execution failure
+        // Revert to previous status on execution failure (atomic guard)
         await admin
           .from('payouts')
           .update({ status: previousStatus })
           .eq('id', payoutId)
+          .eq('status', 'PROCESSING')
         errors.push(`${payoutId}: execution failed`)
         skipped++
         continue
@@ -296,7 +298,7 @@ export async function retryFailedPayout(
   // Execute payout stub
   const execResult = await executePayout(payoutId)
   if (!execResult.ok) {
-    // Mark back as FAILED
+    // Mark back as FAILED (atomic guard)
     await admin
       .from('payouts')
       .update({
@@ -304,6 +306,7 @@ export async function retryFailedPayout(
         provider_error_code: execResult.error ?? null,
       })
       .eq('id', payoutId)
+      .eq('status', 'PROCESSING')
     return { ok: false, error: `Retry failed: ${execResult.error}` }
   }
 

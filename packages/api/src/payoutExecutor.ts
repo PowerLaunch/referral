@@ -16,18 +16,23 @@ export async function executePayout(
 ): Promise<{ ok: boolean; error?: string }> {
   const admin = getAdminClient()
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from('payouts')
     .update({
       status: 'COMPLETED',
       completed_at: new Date().toISOString(),
     })
     .eq('id', payoutId)
-    .in('status', ['PROCESSING'])
+    .eq('status', 'PROCESSING')
+    .select()
 
   if (error) {
     console.error(`executePayout stub failed for ${payoutId}:`, error.message)
     return { ok: false, error: error.message }
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Payout not in PROCESSING state — possible concurrent modification' }
   }
 
   console.log(`[STUB] Payout ${payoutId} marked COMPLETED — real provider call in PR 5-B`)
