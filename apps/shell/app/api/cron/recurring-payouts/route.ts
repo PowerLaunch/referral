@@ -10,6 +10,7 @@ import * as Sentry from '@sentry/nextjs'
 // Uses getAdminClient() from @referral/api/credits so all DB operations in this
 // cron (log insert, credit award, log delete) share the same client instance.
 import { getAdminClient, awardCredits } from '@referral/api/credits'
+import { recordCronSuccess } from '@referral/api/cronHealth'
 
 const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 // TODO PR 7-G: Check influencer_codes for custom caps. For now, use 15 for all.
@@ -85,16 +86,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (!eligibleReferrals || eligibleReferrals.length === 0) {
-    // Cron health + heartbeat
-    try {
-      await adminClient.from('cron_health').upsert(
-        { cron_name: 'recurring-payouts', last_success_at: new Date().toISOString() },
-        { onConflict: 'cron_name' }
-      )
-    } catch { /* cron_health table may not exist yet */ }
-    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-    }
+    await recordCronSuccess('recurring-payouts', adminClient)
     return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
@@ -247,16 +239,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 6 — Return summary
-    // Cron health + heartbeat
-    try {
-      await adminClient.from('cron_health').upsert(
-        { cron_name: 'recurring-payouts', last_success_at: new Date().toISOString() },
-        { onConflict: 'cron_name' }
-      )
-    } catch { /* cron_health table may not exist yet */ }
-    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-    }
+  await recordCronSuccess('recurring-payouts', adminClient)
   return Response.json({ rewardMonth, awarded, skipped, errors })
  } catch (error) {
     Sentry.captureException(error)

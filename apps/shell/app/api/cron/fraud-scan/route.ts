@@ -12,6 +12,7 @@ import {
   runR6DisposableEmail,
   runGeoMismatch,
 } from '@referral/api/fraudRules'
+import { recordCronSuccess } from '@referral/api/cronHealth'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -116,17 +117,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.error('GeoMismatch failed:', error)
   }
 
-  // Cron health + heartbeat
-  try {
-    const adminClient = createAdminClient()
-    await adminClient.from('cron_health').upsert(
-      { cron_name: 'fraud-scan', last_success_at: new Date().toISOString() },
-      { onConflict: 'cron_name' }
-    )
-  } catch { /* cron_health table may not exist yet */ }
-  if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-    await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-  }
+  await recordCronSuccess('fraud-scan', createAdminClient())
 
   // Step 3 — Return summary
   return Response.json({

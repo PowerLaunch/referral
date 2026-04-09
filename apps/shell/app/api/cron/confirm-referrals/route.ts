@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerE2 } from '@referral/api/email'
 import { getUserRiskScore, getRiskCategory } from '@referral/api/riskScore'
+import { recordCronSuccess } from '@referral/api/cronHealth'
 import * as Sentry from '@sentry/nextjs'
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -52,16 +53,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
     console.log('Referral confirmations paused by circuit breaker — exiting')
-    // Cron health + heartbeat
-    try {
-      await adminClient.from('cron_health').upsert(
-        { cron_name: 'confirm-referrals', last_success_at: new Date().toISOString() },
-        { onConflict: 'cron_name' }
-      )
-    } catch { /* cron_health table may not exist yet */ }
-    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-    }
+    await recordCronSuccess('confirm-referrals', adminClient)
     return Response.json({
       ok: true,
       message: 'Paused by circuit breaker',
@@ -123,16 +115,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (pendingReferrals.length === 0) {
-    // Cron health + heartbeat
-    try {
-      await adminClient.from('cron_health').upsert(
-        { cron_name: 'confirm-referrals', last_success_at: new Date().toISOString() },
-        { onConflict: 'cron_name' }
-      )
-    } catch { /* cron_health table may not exist yet */ }
-    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-    }
+    await recordCronSuccess('confirm-referrals', adminClient)
     return Response.json({
       processed: 0,
       confirmed: 0,
@@ -490,16 +473,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 5 — Return summary
-  // Cron health + heartbeat
-  try {
-    await adminClient.from('cron_health').upsert(
-      { cron_name: 'confirm-referrals', last_success_at: new Date().toISOString() },
-      { onConflict: 'cron_name' }
-    )
-  } catch { /* cron_health table may not exist yet */ }
-  if (process.env.BETTERSTACK_HEARTBEAT_URL) {
-    await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
-  }
+  await recordCronSuccess('confirm-referrals', adminClient)
   return Response.json({
     processed: pendingReferrals.length,
     confirmed,

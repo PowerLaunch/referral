@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.transak.com https://api.helius.dev",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.transak.com https://api.helius.dev https://*.ingest.sentry.io",
               "frame-src 'none'",
               "object-src 'none'",
             ].join('; '),
