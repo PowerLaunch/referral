@@ -9,6 +9,7 @@ import { TimezoneProvider } from './components/timezone-context'
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Pulse' },
+  { href: '/admin/influencers', label: 'Influencers' },
   { href: '/admin/seed', label: 'Seed Users' },
   { href: '/admin/config', label: 'Config' },
   { href: '/admin/audit', label: 'Audit Log' },
