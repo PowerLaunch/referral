@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '../../requireAdmin'
 import { NextRequest } from 'next/server'
+import { severityPoints } from '../risk-utils'
 
 export async function GET(
   _request: NextRequest,
@@ -63,8 +64,7 @@ export async function GET(
   let riskScore = 0
   for (const flag of fraudFlags ?? []) {
     if (!(flag.is_resolved as boolean)) {
-      const points = flag.severity === 'CRITICAL' ? 50 : flag.severity === 'WARNING' ? 30 : 10
-      riskScore += points
+      riskScore += severityPoints(flag.severity as string)
     }
   }
 

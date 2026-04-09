@@ -20,15 +20,19 @@ export async function markUnderReview(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
-  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
   if (dispute.status === 'UNDER_REVIEW') return { ok: false, error: 'Dispute is already under review' }
 
-  const { error } = await admin
+  // Atomic status guard: .neq('status', 'RESOLVED') ensures only the first
+  // concurrent request succeeds — eliminates TOCTOU race condition.
+  const { data: updatedRows, error } = await admin
     .from('disputes')
     .update({ status: 'UNDER_REVIEW', admin_notes: adminNotes.trim() })
     .eq('id', disputeId)
+    .neq('status', 'RESOLVED')
+    .select('id')
 
   if (error) return { ok: false, error: error.message }
+  if (!updatedRows || updatedRows.length === 0) return { ok: false, error: 'Dispute is already resolved' }
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
@@ -59,9 +63,10 @@ export async function upholdFlag(
     .single()
 
   if (!dispute) return { ok: false, error: 'Dispute not found' }
-  if (dispute.status === 'RESOLVED') return { ok: false, error: 'Dispute is already resolved' }
 
-  const { error } = await admin
+  // Atomic status guard: .neq('status', 'RESOLVED') ensures only the first
+  // concurrent request succeeds — eliminates TOCTOU race condition.
+  const { data: updatedRows, error } = await admin
     .from('disputes')
     .update({
       status: 'RESOLVED',
@@ -69,8 +74,11 @@ export async function upholdFlag(
       resolved_at: new Date().toISOString(),
     })
     .eq('id', disputeId)
+    .neq('status', 'RESOLVED')
+    .select('id')
 
   if (error) return { ok: false, error: error.message }
+  if (!updatedRows || updatedRows.length === 0) return { ok: false, error: 'Dispute is already resolved' }
 
   await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '../requireAdmin'
 import { NextRequest } from 'next/server'
+import { severityPoints } from './risk-utils'
 
 export async function GET(request: NextRequest): Promise<Response> {
   const auth = await requireAdmin()
@@ -76,8 +77,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const scoreMap = new Map<string, number>()
   for (const flag of fraudFlags ?? []) {
     const uid = flag.user_id as string
-    const points = flag.severity === 'CRITICAL' ? 50 : flag.severity === 'WARNING' ? 30 : 10
-    scoreMap.set(uid, (scoreMap.get(uid) ?? 0) + points)
+    scoreMap.set(uid, (scoreMap.get(uid) ?? 0) + severityPoints(flag.severity as string))
   }
 
   const users = sliced.map((p) => ({
