@@ -124,6 +124,7 @@ export async function restoreReferral(
     .single()
 
   if (!referral) return { ok: false, error: 'Referral not found' }
+  if (referral.status === 'CONFIRMED') return { ok: false, error: 'Cannot restore a referral that is already CONFIRMED — credits have already been awarded' }
 
   const beforeReferralStatus = referral.status as string
 
@@ -190,7 +191,7 @@ export async function adjustPayout(
   const adminId = await requireAdmin()
 
   if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
-  if (amount <= 0) return { ok: false, error: 'Amount must be positive' }
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Amount must be a positive finite number' }
 
   const admin = createAdminClient()
 
