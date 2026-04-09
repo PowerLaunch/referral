@@ -147,15 +147,8 @@ export async function GET(request: NextRequest): Promise<Response> {
           continue
         }
 
-        await adminClient.from('admin_audit_logs').insert({
-          admin_user_id: null,
-          action: 'INFLUENCER_LOCK_BYPASS',
-          target_type: 'referral',
-          target_id: referral.id,
-          details: { influencer_code_id: referral.influencer_code_id },
-        })
         console.log(
-          `Referral ${referral.id}: influencer lock_bypass applied`
+          `Referral ${referral.id}: influencer lock_bypass eligible, checking remaining criteria`
         )
       }
 
@@ -431,6 +424,20 @@ export async function GET(request: NextRequest): Promise<Response> {
         )
         errors++
         continue
+      }
+
+      // Log influencer lock bypass only on successful confirmation
+      if (!lockPeriodPassed && referral.influencer_code_id) {
+        await adminClient.from('admin_audit_logs').insert({
+          admin_user_id: null,
+          action: 'INFLUENCER_LOCK_BYPASS',
+          target_type: 'referral',
+          target_id: referral.id,
+          details: { influencer_code_id: referral.influencer_code_id },
+        })
+        console.log(
+          `Referral ${referral.id}: influencer lock_bypass applied`
+        )
       }
 
       // iii) Fire in-game bonus
