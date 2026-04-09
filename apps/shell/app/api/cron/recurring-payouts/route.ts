@@ -242,6 +242,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   await recordCronSuccess('recurring-payouts', adminClient)
   return Response.json({ rewardMonth, awarded, skipped, errors })
  } catch (error) {
+    console.error('Cron error:', error)
     Sentry.captureException(error)
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }

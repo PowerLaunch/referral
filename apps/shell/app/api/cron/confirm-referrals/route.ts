@@ -481,6 +481,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     errors,
   })
  } catch (error) {
+    console.error('Cron error:', error)
     Sentry.captureException(error)
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }

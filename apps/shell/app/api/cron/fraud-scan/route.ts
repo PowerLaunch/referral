@@ -39,6 +39,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const scannedAt = new Date().toISOString()
   const results: Array<{ rule: string; flagged: number; error?: string }> = []
   let totalFlagged = 0
+  let ruleFailures = 0
 
   // R1: Spike Detection
   try {
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R1_SPIKE_DETECTION', flagged: 0, error: errorMessage })
     console.error('R1 failed:', error)
+    ruleFailures++
   }
 
   // R2: Device Cluster
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R2_DEVICE_CLUSTER', flagged: 0, error: errorMessage })
     console.error('R2 failed:', error)
+    ruleFailures++
   }
 
   // R3: New Account Velocity
@@ -71,6 +74,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R3_NEW_ACCOUNT_VELOCITY', flagged: 0, error: errorMessage })
     console.error('R3 failed:', error)
+    ruleFailures++
   }
 
   // R4: Cashout Spike
@@ -82,6 +86,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R4_CASHOUT_SPIKE', flagged: 0, error: errorMessage })
     console.error('R4 failed:', error)
+    ruleFailures++
   }
 
   // R5: Zero Gameplay
@@ -93,6 +98,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R5_ZERO_GAMEPLAY', flagged: 0, error: errorMessage })
     console.error('R5 failed:', error)
+    ruleFailures++
   }
 
   // R6: Disposable Email
@@ -104,6 +110,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R6_DISPOSABLE_EMAIL', flagged: 0, error: errorMessage })
     console.error('R6 failed:', error)
+    ruleFailures++
   }
 
   // Geo-Mismatch
@@ -115,6 +122,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R_GEO_MISMATCH', flagged: 0, error: errorMessage })
     console.error('GeoMismatch failed:', error)
+    ruleFailures++
+  }
+
+  if (ruleFailures > 0) {
+    console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
+    return Response.json(
+      { error: `${ruleFailures} rules failed`, scannedAt, results, totalFlagged },
+      { status: 500 }
+    )
   }
 
   await recordCronSuccess('fraud-scan', createAdminClient())
@@ -127,6 +143,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     totalFlagged,
   })
  } catch (error) {
+    console.error('Cron error:', error)
     Sentry.captureException(error)
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }
