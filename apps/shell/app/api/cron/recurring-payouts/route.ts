@@ -6,6 +6,7 @@
 // $1 = 100 credit units (100 credits = $1 per spec exchange rate).
 
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 // Uses getAdminClient() from @referral/api/credits so all DB operations in this
 // cron (log insert, credit award, log delete) share the same client instance.
 import { getAdminClient, awardCredits } from '@referral/api/credits'
@@ -16,6 +17,7 @@ const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 const RECURRING_REWARD_AMOUNT = 100 // 100 credit units = $1 (100 credits = $1)
 
 export async function GET(request: NextRequest): Promise<Response> {
+ try {
   // Step 1 — Auth
   // Vercel Cron sends Authorization: Bearer {CRON_SECRET} — not x-cron-secret.
   const authHeader = request.headers.get('authorization')
@@ -83,6 +85,16 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (!eligibleReferrals || eligibleReferrals.length === 0) {
+    // Cron health + heartbeat
+    try {
+      await adminClient.from('cron_health').upsert(
+        { cron_name: 'recurring-payouts', last_success_at: new Date().toISOString() },
+        { onConflict: 'cron_name' }
+      )
+    } catch { /* cron_health table may not exist yet */ }
+    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
+      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
+    }
     return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
@@ -235,5 +247,19 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 6 — Return summary
+    // Cron health + heartbeat
+    try {
+      await adminClient.from('cron_health').upsert(
+        { cron_name: 'recurring-payouts', last_success_at: new Date().toISOString() },
+        { onConflict: 'cron_name' }
+      )
+    } catch { /* cron_health table may not exist yet */ }
+    if (process.env.BETTERSTACK_HEARTBEAT_URL) {
+      await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
+    }
   return Response.json({ rewardMonth, awarded, skipped, errors })
+ } catch (error) {
+    Sentry.captureException(error)
+    return Response.json({ error: 'Internal error' }, { status: 500 })
+  }
 }

@@ -12,8 +12,11 @@ import {
   runR6DisposableEmail,
   runGeoMismatch,
 } from '@referral/api/fraudRules'
+import * as Sentry from '@sentry/nextjs'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: NextRequest): Promise<Response> {
+ try {
   // Step 1 — Auth check (matches confirm-referrals pattern)
   const authHeader = request.headers.get('authorization')
   const expectedSecret = process.env.CRON_SECRET
@@ -113,6 +116,18 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.error('GeoMismatch failed:', error)
   }
 
+  // Cron health + heartbeat
+  try {
+    const adminClient = createAdminClient()
+    await adminClient.from('cron_health').upsert(
+      { cron_name: 'fraud-scan', last_success_at: new Date().toISOString() },
+      { onConflict: 'cron_name' }
+    )
+  } catch { /* cron_health table may not exist yet */ }
+  if (process.env.BETTERSTACK_HEARTBEAT_URL) {
+    await fetch(process.env.BETTERSTACK_HEARTBEAT_URL).catch(() => {})
+  }
+
   // Step 3 — Return summary
   return Response.json({
     ok: true,
@@ -120,4 +135,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     results,
     totalFlagged,
   })
+ } catch (error) {
+    Sentry.captureException(error)
+    return Response.json({ error: 'Internal error' }, { status: 500 })
+  }
 }

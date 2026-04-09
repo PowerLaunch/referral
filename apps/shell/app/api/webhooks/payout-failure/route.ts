@@ -3,6 +3,7 @@
 // This stub ensures handlePayoutFailure is reachable and testable now.
 
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { handlePayoutFailure } from '@referral/api/payoutFailure'
 import { safeCompare } from '@/lib/crypto'
 
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await handlePayoutFailure(payoutId, errorCode, isTransient ?? false)
     return NextResponse.json({ ok: true })
   } catch (err) {
+    Sentry.captureException(err)
     console.error('Payout failure webhook error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
