@@ -6,9 +6,11 @@
 // $1 = 100 credit units (100 credits = $1 per spec exchange rate).
 
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 // Uses getAdminClient() from @referral/api/credits so all DB operations in this
 // cron (log insert, credit award, log delete) share the same client instance.
 import { getAdminClient, awardCredits } from '@referral/api/credits'
+import { recordCronSuccess } from '@referral/api/cronHealth'
 
 const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 // TODO PR 7-G: Check influencer_codes for custom caps. For now, use 15 for all.
@@ -16,6 +18,7 @@ const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 const RECURRING_REWARD_AMOUNT = 100 // 100 credit units = $1 (100 credits = $1)
 
 export async function GET(request: NextRequest): Promise<Response> {
+ try {
   // Step 1 — Auth
   // Vercel Cron sends Authorization: Bearer {CRON_SECRET} — not x-cron-secret.
   const authHeader = request.headers.get('authorization')
@@ -83,6 +86,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (!eligibleReferrals || eligibleReferrals.length === 0) {
+    await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
     return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
@@ -235,5 +239,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 6 — Return summary
+  await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
   return Response.json({ rewardMonth, awarded, skipped, errors })
+ } catch (error) {
+    console.error('Cron error:', error)
+    Sentry.captureException(error)
+    return Response.json({ error: 'Internal error' }, { status: 500 })
+  }
 }

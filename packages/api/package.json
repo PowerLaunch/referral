@@ -16,7 +16,8 @@
     "./kycHash": "./src/kycHash.ts",
     "./statusDisplay": "./src/statusDisplay.ts",
     "./chargebackHandler": "./src/chargebackHandler.ts",
-    "./payoutExecutor": "./src/payoutExecutor.ts"
+    "./payoutExecutor": "./src/payoutExecutor.ts",
+    "./cronHealth": "./src/cronHealth.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

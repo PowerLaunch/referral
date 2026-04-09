@@ -33,6 +33,7 @@ Format: Date | What was added | Why | Which files changed
 | 2026-04-09 | chore/security-todos: Added TODO reminders for 12 security measures across 5-A, 5-B, and post-Phase-5 fraud patches | Source: SECURITY.md + Gemini review | payout/request/route.ts, webhooks/subscription/route.ts, packages/api/src/fraudRules.ts |
 | 2026-04-09 | chore/branch-rule: Enforced branch-off-main rule in .cursorrules and CLAUDE.md | feat/scaffold merge issues caused rework on PRs #21, #24 | .cursorrules, CLAUDE.md |
 | 2026-04-09 | feat/admin-cashouts-fraud (PR #29): Combined 7-D cashout review and 7-E fraud management | Cashout tabs with approve/reject/batch/retry. Fraud flags feed with severity filtering, device fingerprint clusters, Sybil cluster view (IDs only, no emails), circuit breaker controls, webhook log viewer | admin/cashouts/*, admin/fraud/*, api/admin/cashouts/*, api/admin/fraud/*, migration 20260409000003, packages/api/src/payoutExecutor.ts |
+| 2026-04-09 | feat/hardening (PR #30): Combined 8-A security audit and 8-B cron hardening | Service role key isolation verified, API route auth checked, CSP headers added, RLS verification script created, BetterStack heartbeat on all crons, Sentry error monitoring integrated, cron_health table updates added | next.config.ts, admin.ts, cron routes, webhook routes, sentry configs, vercel.json, scripts/verify-rls.sql, .env.local.example |
 
 ---
 

@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Admin client with service role key — bypasses RLS
-// Use ONLY in API routes and server-side code that requires elevated privileges
-// NEVER expose this client or the service role key to the client side
+// SECURITY: This file creates a service_role client that bypasses RLS.
+// Only import in: API routes (app/api/**), admin server actions, packages/api.
+// Never import in client components or non-server files.
 
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

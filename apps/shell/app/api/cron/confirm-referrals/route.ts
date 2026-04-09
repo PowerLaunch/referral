@@ -6,8 +6,11 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerE2 } from '@referral/api/email'
 import { getUserRiskScore, getRiskCategory } from '@referral/api/riskScore'
+import { recordCronSuccess } from '@referral/api/cronHealth'
+import * as Sentry from '@sentry/nextjs'
 
 export async function GET(request: NextRequest): Promise<Response> {
+ try {
   // Step 1 — Auth check
   const authHeader = request.headers.get('authorization')
   const expectedSecret = process.env.CRON_SECRET
@@ -50,6 +53,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
     console.log('Referral confirmations paused by circuit breaker — exiting')
+    await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
     return Response.json({
       ok: true,
       message: 'Paused by circuit breaker',
@@ -111,6 +115,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (pendingReferrals.length === 0) {
+    await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
     return Response.json({
       processed: 0,
       confirmed: 0,
@@ -468,10 +473,16 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 5 — Return summary
+  await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
   return Response.json({
     processed: pendingReferrals.length,
     confirmed,
     skipped,
     errors,
   })
+ } catch (error) {
+    console.error('Cron error:', error)
+    Sentry.captureException(error)
+    return Response.json({ error: 'Internal error' }, { status: 500 })
+  }
 }

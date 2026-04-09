@@ -11,6 +11,7 @@ import {
   freezeReferralsForUser,
   unfreezeReferralsForUser,
 } from '@referral/api/maturityCheckpoint'
+import * as Sentry from '@sentry/nextjs'
 import { safeCompare } from '@/lib/crypto'
 
 export async function POST(request: Request): Promise<Response> {
@@ -67,6 +68,7 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ ok: true, event: 'ignored' })
     }
   } catch (error) {
+    Sentry.captureException(error)
     console.error('Subscription webhook error:', error)
     return Response.json(
       { ok: false, error: 'Internal error' },
