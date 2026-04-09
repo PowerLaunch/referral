@@ -8,9 +8,10 @@ export async function markUnderReview(
   disputeId: string,
   adminNotes: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+
   if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
 
-  const adminId = await requireAdmin()
   const admin = createAdminClient()
 
   const { data: dispute } = await admin
@@ -51,9 +52,10 @@ export async function upholdFlag(
   disputeId: string,
   adminNotes: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+
   if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
 
-  const adminId = await requireAdmin()
   const admin = createAdminClient()
 
   const { data: dispute } = await admin
@@ -97,9 +99,10 @@ export async function restoreReferral(
   disputeId: string,
   adminNotes: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+
   if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
 
-  const adminId = await requireAdmin()
   const admin = createAdminClient()
 
   const { data: dispute } = await admin
@@ -184,10 +187,9 @@ export async function adjustPayout(
   adminNotes: string,
   amount: number
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
-
   const adminId = await requireAdmin()
 
+  if (!adminNotes.trim()) return { ok: false, error: 'Admin notes are required' }
   if (amount <= 0) return { ok: false, error: 'Amount must be positive' }
 
   const admin = createAdminClient()
