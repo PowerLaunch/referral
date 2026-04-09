@@ -21,6 +21,10 @@ Read PROGRESS.md before every task.
 - Game never imports from packages/api — API routes only.
 - Package: @referral/api via transpilePackages.
 
+## Branching
+
+- All new branches must be based off main. Never branch from feat/scaffold or any other feature branch.
+
 ## Prompt Format
 
 Read .cursorrules first. [This is a code change task only — do not investigate.]
