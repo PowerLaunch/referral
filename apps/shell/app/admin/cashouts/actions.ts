@@ -2,7 +2,6 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { awardCredits } from '@referral/api/credits'
-import { getUserRiskScore } from '@referral/api/riskScore'
 import { executePayout } from '@referral/api/payoutExecutor'
 import { requireAdmin } from '../actions'
 
@@ -214,8 +213,26 @@ export async function batchApproveLowRisk(
         continue
       }
 
-      // Risk score must be < 30
-      const riskScore = await getUserRiskScore(payout.user_id as string)
+      // Risk score must be < 30 — query fraud_flags directly to detect DB errors
+      const { data: flags, error: flagsError } = await admin
+        .from('fraud_flags')
+        .select('severity')
+        .eq('user_id', payout.user_id)
+        .eq('is_resolved', false)
+
+      if (flagsError) {
+        errors.push(`${payoutId}: could not verify risk score — skipping`)
+        skipped++
+        continue
+      }
+
+      const riskScore = (flags ?? []).reduce((sum: number, f: { severity: string }) => {
+        if (f.severity === 'CRITICAL') return sum + 50
+        if (f.severity === 'WARNING') return sum + 30
+        if (f.severity === 'INFO') return sum + 10
+        return sum
+      }, 0)
+
       if (riskScore >= 30) {
         errors.push(`${payoutId}: risk score too high (${riskScore})`)
         skipped++
