@@ -67,7 +67,7 @@ BEGIN
   ELSE
     -- Same session — only increment minutes
     INSERT INTO public.gameplay_sessions (user_id, total_minutes, session_count, last_heartbeat_at, updated_at)
-    VALUES (p_user_id, 1, 0, now(), now())
+    VALUES (p_user_id, 1, 1, now(), now())
     ON CONFLICT (user_id) DO UPDATE SET
       total_minutes = gameplay_sessions.total_minutes + 1,
       last_heartbeat_at = now(),
@@ -85,8 +85,7 @@ GRANT EXECUTE ON FUNCTION public.increment_gameplay_minute(uuid) TO service_role
 -- 4. Update ping_gameplay: keep-alive heartbeat only.
 --    ping_gameplay NEVER increments session_count — only increment_gameplay_minute
 --    does that (on active play after a 30+ min gap).
---    If a 30+ min gap is detected, ping_gameplay does NOT update last_heartbeat_at,
---    preserving the gap so increment_gameplay_minute can detect the new session.
+--    last_heartbeat_at is always refreshed to keep "online" timestamp current.
 CREATE OR REPLACE FUNCTION public.ping_gameplay(p_user_id uuid)
 RETURNS jsonb AS $$
 DECLARE
@@ -115,24 +114,26 @@ BEGIN
     END IF;
   END IF;
 
-  -- If no row exists yet or gap >= 30 min: return early without updating.
-  -- Preserves the gap so increment_gameplay_minute detects the new session.
-  IF v_last_heartbeat IS NULL OR
-     EXTRACT(EPOCH FROM (now() - v_last_heartbeat))::integer >= 1800 THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'total_minutes', COALESCE(v_total_minutes, 0),
-      'session_count', COALESCE(v_session_count, 0)
-    );
+  -- No row exists yet: INSERT with session_count = 0 (user is pinging but
+  -- hasn't actively played yet, so no session counted).
+  IF v_last_heartbeat IS NULL THEN
+    INSERT INTO public.gameplay_sessions (user_id, total_minutes, session_count, last_heartbeat_at, updated_at)
+    VALUES (p_user_id, 0, 0, now(), now())
+    ON CONFLICT (user_id) DO UPDATE SET
+      last_heartbeat_at = now(),
+      updated_at = now()
+    RETURNING total_minutes, session_count INTO v_total_minutes, v_session_count;
+
+    RETURN jsonb_build_object('ok', true, 'total_minutes', v_total_minutes, 'session_count', v_session_count);
   END IF;
 
-  -- Same session — just refresh heartbeat timestamp (no session_count change)
+  -- Row exists (gap or same session) — refresh heartbeat only, never touch session_count.
   UPDATE public.gameplay_sessions SET
     last_heartbeat_at = now(),
     updated_at = now()
   WHERE user_id = p_user_id;
 
-  RETURN jsonb_build_object('ok', true, 'total_minutes', COALESCE(v_total_minutes, 0), 'session_count', v_session_count);
+  RETURN jsonb_build_object('ok', true, 'total_minutes', COALESCE(v_total_minutes, 0), 'session_count', COALESCE(v_session_count, 0));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
