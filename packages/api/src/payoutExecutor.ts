@@ -21,6 +21,7 @@ export async function executePayout(
     .update({
       status: 'COMPLETED',
       completed_at: new Date().toISOString(),
+      provider_error_code: null,
     })
     .eq('id', payoutId)
     .eq('status', 'PROCESSING')
