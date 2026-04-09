@@ -67,7 +67,7 @@ BEGIN
   ELSE
     -- Same session — only increment minutes
     INSERT INTO public.gameplay_sessions (user_id, total_minutes, session_count, last_heartbeat_at, updated_at)
-    VALUES (p_user_id, 1, 1, now(), now())
+    VALUES (p_user_id, 1, 0, now(), now())
     ON CONFLICT (user_id) DO UPDATE SET
       total_minutes = gameplay_sessions.total_minutes + 1,
       last_heartbeat_at = now(),
