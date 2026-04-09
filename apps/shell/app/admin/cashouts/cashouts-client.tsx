@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { approvePayout, rejectPayout, batchApproveLowRisk, retryFailedPayout } from './actions'
+import { approvePayout, rejectPayout, batchApproveLowRisk, retryFailedPayout, REJECTION_REASONS } from './actions'
 import { riskColor } from '../users/utils'
 
 interface PayoutRow {
@@ -28,13 +28,6 @@ const TABS = [
   { key: 'COMPLETED', label: 'Completed' },
   { key: 'REJECTED', label: 'Rejected' },
   { key: 'FAILED', label: 'Failed' },
-] as const
-
-const REJECTION_REASONS = [
-  'Fraud Suspected',
-  'Wrong Details',
-  'Policy Violation',
-  'Other',
 ] as const
 
 export default function CashoutsClient() {
@@ -130,14 +123,13 @@ export default function CashoutsClient() {
     setActionLoading('batch')
     try {
       const result = await batchApproveLowRisk(Array.from(selectedIds))
-      if (result.ok) {
-        showMessage(
-          'success',
-          `Batch: ${result.approved} approved, ${result.skipped} skipped`
-        )
-        setSelectedIds(new Set())
-        void fetchPayouts(activeTab, page)
-      }
+      const errorMsg = result.errors?.length ? `\nErrors: ${result.errors.join(', ')}` : ''
+      showMessage(
+        result.ok ? 'success' : 'error',
+        `Batch: ${result.approved} approved, ${result.skipped} skipped${errorMsg}`
+      )
+      setSelectedIds(new Set())
+      void fetchPayouts(activeTab, page)
     } catch {
       showMessage('error', 'Batch approval failed')
     } finally {

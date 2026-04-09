@@ -6,7 +6,7 @@ import { getUserRiskScore } from '@referral/api/riskScore'
 import { executePayout } from '@referral/api/payoutExecutor'
 import { requireAdmin } from '../actions'
 
-const REJECTION_REASONS = [
+export const REJECTION_REASONS = [
   'Fraud Suspected',
   'Wrong Details',
   'Policy Violation',
@@ -296,7 +296,7 @@ export async function batchApproveLowRisk(
     }
   }
 
-  return { ok: true, approved, skipped, errors }
+  return { ok: approved > 0, approved, skipped, errors }
 }
 
 export async function retryFailedPayout(
