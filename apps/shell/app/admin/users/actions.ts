@@ -162,6 +162,7 @@ export async function unflagSuspicious(
     .single()
 
   if (!profile) return { ok: false, error: 'User not found' }
+  if (profile.trust_level !== 'SUSPICIOUS') return { ok: false, error: 'Can only unflag accounts that are currently SUSPICIOUS' }
 
   const beforeTrust = profile.trust_level as string
 
