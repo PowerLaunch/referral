@@ -164,6 +164,7 @@ Complete these before starting PR 5-A:
 | 6-D | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Dispute form + disputes table migration |
 | 6-E | feat/user-dashboard | #20 | COMPLETE | 2026-04-08 | Landing page referral earnings calculator |
 | — | fix/session-diversity | #21 | OPEN | 2026-04-08 | Session diversity: min 3 gameplay sessions for referral confirmation |
+| 7-A/7-B/7-I | feat/admin-foundation | #22 | OPEN | 2026-04-08 | Admin foundation: auth guard, pulse dashboard, kill switches, config editor, audit log, seed users |
 
 ---
 

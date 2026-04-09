@@ -87,6 +87,20 @@ export async function POST(request: Request): Promise<Response> {
 
     // Step 3 — Guards
 
+    // Guard 0 — Kill switch: cashouts_paused
+    const { data: gameConfig } = await adminClient
+      .from('game_config')
+      .select('cashouts_paused')
+      .limit(1)
+      .single()
+
+    if (gameConfig?.cashouts_paused) {
+      return Response.json(
+        { error: 'Payouts are temporarily paused. Please try again later.' },
+        { status: 503 }
+      )
+    }
+
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
@@ -111,6 +125,15 @@ export async function POST(request: Request): Promise<Response> {
     // SUSPICIOUS users are blocked from payouts at both middleware
     // and route level (belt-and-suspenders). Shadow review — user sees generic message.
 
+    // Defense-in-depth: block REVIEW_HOLD even if middleware missed it
+    if (profile.status === 'REVIEW_HOLD') {
+      return Response.json(
+        { error: 'Payouts are temporarily restricted' },
+        { status: 403 }
+      )
+    }
+
+
     // Guard B — Payout hold
     // payout_hold is set by R1 spike detection. Cleared by admin in Phase 7.
     if (profile.payout_hold) {
@@ -119,7 +142,6 @@ export async function POST(request: Request): Promise<Response> {
         { status: 403 }
       )
     }
-
 
     // Guard C — Active subscription
     const { data: subscription, error: subError } = await adminClient
