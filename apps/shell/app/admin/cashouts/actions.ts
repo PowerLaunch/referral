@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { awardCredits } from '@referral/api/credits'
 import { executePayout } from '@referral/api/payoutExecutor'
 import { requireAdmin } from '../actions'
+import { severityPoints } from '@/app/api/admin/users/risk-utils'
 
 export const REJECTION_REASONS = [
   'Fraud Suspected',
@@ -227,10 +228,7 @@ export async function batchApproveLowRisk(
       }
 
       const riskScore = (flags ?? []).reduce((sum: number, f: { severity: string }) => {
-        if (f.severity === 'CRITICAL') return sum + 50
-        if (f.severity === 'WARNING') return sum + 30
-        if (f.severity === 'INFO') return sum + 10
-        return sum
+        return sum + severityPoints(f.severity)
       }, 0)
 
       if (riskScore >= 30) {
