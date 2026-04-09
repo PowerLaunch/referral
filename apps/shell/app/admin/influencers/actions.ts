@@ -47,6 +47,12 @@ export async function createInfluencerCode(
   if (!/^[A-Za-z0-9]{3,20}$/.test(code)) {
     return { ok: false, error: 'Code must be 3-20 alphanumeric characters' }
   }
+  if (typeof input.payout_percentage !== 'number' || Number.isNaN(input.payout_percentage)) {
+    return { ok: false, error: 'Payout percentage must be a valid number' }
+  }
+  if (typeof input.monthly_cap !== 'number' || Number.isNaN(input.monthly_cap)) {
+    return { ok: false, error: 'Monthly cap must be a valid number' }
+  }
   if (input.payout_percentage < 1 || input.payout_percentage > 100) {
     return { ok: false, error: 'Payout percentage must be 1-100' }
   }
@@ -106,6 +112,12 @@ export async function updateInfluencerCode(
 ): Promise<{ ok: boolean; error?: string }> {
   const adminId = await requireAdmin()
 
+  if (typeof input.payout_percentage !== 'number' || Number.isNaN(input.payout_percentage)) {
+    return { ok: false, error: 'Payout percentage must be a valid number' }
+  }
+  if (typeof input.monthly_cap !== 'number' || Number.isNaN(input.monthly_cap)) {
+    return { ok: false, error: 'Monthly cap must be a valid number' }
+  }
   if (input.payout_percentage < 1 || input.payout_percentage > 100) {
     return { ok: false, error: 'Payout percentage must be 1-100' }
   }
