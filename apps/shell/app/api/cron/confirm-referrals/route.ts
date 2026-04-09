@@ -53,7 +53,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
     console.log('Referral confirmations paused by circuit breaker — exiting')
-    await recordCronSuccess('confirm-referrals', adminClient)
+    await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
     return Response.json({
       ok: true,
       message: 'Paused by circuit breaker',
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (pendingReferrals.length === 0) {
-    await recordCronSuccess('confirm-referrals', adminClient)
+    await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
     return Response.json({
       processed: 0,
       confirmed: 0,
@@ -473,7 +473,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 5 — Return summary
-  await recordCronSuccess('confirm-referrals', adminClient)
+  await recordCronSuccess('confirm-referrals', adminClient, process.env.BETTERSTACK_HEARTBEAT_CONFIRM_REFERRALS)
   return Response.json({
     processed: pendingReferrals.length,
     confirmed,

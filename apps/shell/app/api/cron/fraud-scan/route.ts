@@ -50,6 +50,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R1_SPIKE_DETECTION', flagged: 0, error: errorMessage })
     console.error('R1 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R2_DEVICE_CLUSTER', flagged: 0, error: errorMessage })
     console.error('R2 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -74,6 +76,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R3_NEW_ACCOUNT_VELOCITY', flagged: 0, error: errorMessage })
     console.error('R3 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -86,6 +89,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R4_CASHOUT_SPIKE', flagged: 0, error: errorMessage })
     console.error('R4 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -98,6 +102,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R5_ZERO_GAMEPLAY', flagged: 0, error: errorMessage })
     console.error('R5 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -110,6 +115,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R6_DISPOSABLE_EMAIL', flagged: 0, error: errorMessage })
     console.error('R6 failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -122,6 +128,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     results.push({ rule: 'R_GEO_MISMATCH', flagged: 0, error: errorMessage })
     console.error('GeoMismatch failed:', error)
+    Sentry.captureException(error)
     ruleFailures++
   }
 
@@ -133,7 +140,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     )
   }
 
-  await recordCronSuccess('fraud-scan', createAdminClient())
+  await recordCronSuccess('fraud-scan', createAdminClient(), process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)
 
   // Step 3 — Return summary
   return Response.json({

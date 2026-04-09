@@ -86,7 +86,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (!eligibleReferrals || eligibleReferrals.length === 0) {
-    await recordCronSuccess('recurring-payouts', adminClient)
+    await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
     return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
@@ -239,7 +239,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Step 6 — Return summary
-  await recordCronSuccess('recurring-payouts', adminClient)
+  await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
   return Response.json({ rewardMonth, awarded, skipped, errors })
  } catch (error) {
     console.error('Cron error:', error)
