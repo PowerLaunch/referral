@@ -342,10 +342,15 @@ export async function POST(request: Request): Promise<Response> {
     const stagingHours = await getPayoutStagingHours(adminClient, user.id)
     const stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
 
-    await adminClient
+    const { error: stageError } = await adminClient
       .from('payouts')
       .update({ status: 'STAGED', staged_until: stagedUntil })
       .eq('id', payoutId as string)
+
+    if (stageError) {
+      console.error('Failed to update payout to STAGED:', stageError)
+      return Response.json({ error: 'Failed to stage payout' }, { status: 500 })
+    }
 
     // Step 7 — Return success
     // User-facing message does not mention "review" or "fraud"

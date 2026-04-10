@@ -151,7 +151,19 @@ export async function GET(request: Request) {
           .single()
 
         if (vipProfile?.is_vip) {
-          await adjustTrustScore(vipAdminClient, user.id, 300, 'vip_signup_bonus')
+          // Check idempotency: partial unique index on (user_id, reason) WHERE reason = 'vip_signup_bonus'
+          // prevents duplicates at DB level. Application-level check avoids unnecessary RPC call.
+          const { data: existingBonus } = await vipAdminClient
+            .from('trust_score_events')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('reason', 'vip_signup_bonus')
+            .limit(1)
+            .maybeSingle()
+
+          if (!existingBonus) {
+            await adjustTrustScore(vipAdminClient, user.id, 300, 'vip_signup_bonus')
+          }
         }
       } catch (vipErr) {
         console.error('VIP trust score initialization error:', vipErr)

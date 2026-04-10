@@ -40,11 +40,26 @@ CREATE POLICY "service_role_select" ON trust_score_events FOR SELECT TO service_
 CREATE INDEX idx_trust_score_events_user_id ON trust_score_events(user_id);
 CREATE INDEX idx_trust_score_events_reason ON trust_score_events(reason);
 
--- 1d. Partial unique index for one-time trust bonuses (idempotency)
--- This prevents duplicate referral_longevity bonuses: one per referral
+-- 1d. Partial unique indexes for one-time trust bonuses (idempotency)
+-- Prevents duplicate referral_longevity bonuses: one per referral
 CREATE UNIQUE INDEX idx_trust_score_events_unique_reason
   ON trust_score_events(user_id, reason)
   WHERE reason LIKE 'referral_longevity:%';
+
+-- Prevents duplicate monthly subscription bonuses: one per user per month
+CREATE UNIQUE INDEX idx_trust_score_events_unique_subscription
+  ON trust_score_events(user_id, reason)
+  WHERE reason LIKE 'monthly_subscription:%';
+
+-- Prevents duplicate monthly gameplay bonuses: one per user per month
+CREATE UNIQUE INDEX idx_trust_score_events_unique_gameplay
+  ON trust_score_events(user_id, reason)
+  WHERE reason LIKE 'monthly_gameplay_bonus:%';
+
+-- Prevents duplicate VIP signup bonus: one per user ever
+CREATE UNIQUE INDEX idx_trust_score_events_unique_vip_bonus
+  ON trust_score_events(user_id, reason)
+  WHERE reason = 'vip_signup_bonus';
 
 -- 1e. Payouts table additions for staging
 ALTER TABLE payouts ADD COLUMN IF NOT EXISTS staged_until timestamptz;

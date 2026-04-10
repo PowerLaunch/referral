@@ -11,7 +11,6 @@ import * as Sentry from '@sentry/nextjs'
 // cron (log insert, credit award, log delete) share the same client instance.
 import { getAdminClient, awardCredits } from '@referral/api/credits'
 import { recordCronSuccess } from '@referral/api/cronHealth'
-import { logAdminAction } from '@referral/api/riskScore'
 
 const MAX_RECURRING_STANDARD = 15 // spec Section 2.9
 // TODO PR 7-G: Check influencer_codes for custom caps. For now, use 15 for all.
@@ -42,100 +41,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   // in payout/request/route.ts.
 
   const adminClient = getAdminClient()
-
-  // Step 1.5 — Promote STAGED payouts whose staging window has expired
-  const { data: stagedPayouts, error: stagedError } = await adminClient
-    .from('payouts')
-    .select('id, user_id, amount, is_first_payout, created_at')
-    .eq('status', 'STAGED')
-    .lte('staged_until', new Date().toISOString())
-    .limit(10000)
-
-  if (stagedError) {
-    console.error('Failed to fetch staged payouts:', stagedError.message)
-  }
-
-  let stagedPromoted = 0
-  let stagedCancelled = 0
-
-  for (const payout of stagedPayouts ?? []) {
-    try {
-      // Check if user has any NEW fraud_flags created after the payout was created
-      const { data: newFlags, error: flagsError } = await adminClient
-        .from('fraud_flags')
-        .select('id, severity')
-        .eq('user_id', payout.user_id)
-        .gte('created_at', payout.created_at as string)
-        .in('severity', ['WARNING', 'CRITICAL'])
-        .limit(1)
-
-      if (flagsError) {
-        console.error(`Failed to check fraud flags for staged payout ${payout.id}:`, flagsError.message)
-        continue
-      }
-
-      if (newFlags && newFlags.length > 0) {
-        // New fraud flags detected — cancel payout and refund credits
-        const { error: cancelError } = await adminClient
-          .from('payouts')
-          .update({ status: 'REJECTED', admin_notes: 'Auto-cancelled: fraud flags detected during staging' })
-          .eq('id', payout.id)
-          .eq('status', 'STAGED')
-
-        if (cancelError) {
-          console.error(`Failed to cancel staged payout ${payout.id}:`, cancelError.message)
-          continue
-        }
-
-        // Refund credits
-        try {
-          await awardCredits(
-            payout.user_id as string,
-            payout.amount as number,
-            'CASH_BALANCE',
-            `payout_auto_cancelled:${payout.id}`
-          )
-        } catch (creditErr) {
-          console.error(`Failed to refund credits for cancelled payout ${payout.id}:`, creditErr)
-        }
-
-        // Audit log
-        await logAdminAction({
-          adminUserId: null,
-          action: 'PAYOUT_AUTO_CANCELLED_FRAUD',
-          targetType: 'payout',
-          targetId: payout.id as string,
-          beforeValue: 'STAGED',
-          afterValue: 'REJECTED',
-          reason: 'Fraud flags detected during staging window',
-        })
-
-        stagedCancelled++
-      } else {
-        // No new fraud flags — promote to PENDING or PENDING_MANUAL_APPROVAL
-        const newStatus = payout.is_first_payout ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
-
-        const { error: promoteError } = await adminClient
-          .from('payouts')
-          .update({ status: newStatus })
-          .eq('id', payout.id)
-          .eq('status', 'STAGED')
-
-        if (promoteError) {
-          console.error(`Failed to promote staged payout ${payout.id}:`, promoteError.message)
-          continue
-        }
-
-        stagedPromoted++
-      }
-    } catch (err) {
-      console.error(`Error processing staged payout ${payout.id}:`, err)
-    }
-  }
-
-  if (stagedPromoted > 0 || stagedCancelled > 0) {
-    console.log(`Staged payouts: ${stagedPromoted} promoted, ${stagedCancelled} cancelled`)
-  }
 
   // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()
@@ -181,7 +86,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   if (!eligibleReferrals || eligibleReferrals.length === 0) {
     await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
-    return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0, stagedPromoted, stagedCancelled })
+    return Response.json({ rewardMonth, awarded: 0, skipped: 0, errors: 0 })
   }
 
   // Single set covers both roles — a user must have active subscription
@@ -334,7 +239,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Step 6 — Return summary
   await recordCronSuccess('recurring-payouts', adminClient, process.env.BETTERSTACK_HEARTBEAT_RECURRING_PAYOUTS)
-  return Response.json({ rewardMonth, awarded, skipped, errors, stagedPromoted, stagedCancelled })
+  return Response.json({ rewardMonth, awarded, skipped, errors })
  } catch (error) {
     console.error('Cron error:', error)
     Sentry.captureException(error)
