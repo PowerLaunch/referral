@@ -8,7 +8,7 @@ import {
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
-import { adjustTrustScore } from '@referral/api/trustScore'
+import { adjustTrustScore, getDynamicLockPeriodDays } from '@referral/api/trustScore'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -68,8 +68,15 @@ export async function GET(request: Request) {
             const countryCode = getCountryFromIp(ip)
             const vpnDetected = isVpnDetected(ip)
 
-            // Calculate lock period
-            const lockPeriodDays = getLockPeriodDays(countryCode, vpnDetected)
+            // Calculate lock period with trust-tier-based reduction for the referrer.
+            // New users (STANDARD tier) get baseLockDays unchanged — no regression.
+            const baseLockDays = getLockPeriodDays(countryCode, vpnDetected)
+            let lockPeriodDays = baseLockDays
+            try {
+              lockPeriodDays = await getDynamicLockPeriodDays(adminClient, referrerProfile.id as string, baseLockDays)
+            } catch {
+              // Fail open: use base lock period if trust lookup fails
+            }
 
             // Atomic honeymoon check + referral insert via RPC.
             // Advisory lock prevents TOCTOU race on concurrent signups.

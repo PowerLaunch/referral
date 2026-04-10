@@ -69,6 +69,11 @@ ALTER TABLE payouts DROP CONSTRAINT IF EXISTS payouts_status_check;
 ALTER TABLE payouts ADD CONSTRAINT payouts_status_check
   CHECK (status IN ('STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING', 'COMPLETED', 'FAILED', 'REJECTED'));
 
+-- Update partial unique index to include STAGED — prevents concurrent payout double-spend.
+DROP INDEX IF EXISTS idx_payouts_one_pending_per_user;
+CREATE UNIQUE INDEX idx_payouts_one_pending_per_user ON payouts(user_id)
+  WHERE status IN ('STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING');
+
 -- 1f. RPC function for atomic trust score adjustment
 CREATE OR REPLACE FUNCTION public.adjust_trust_score(
   p_user_id uuid,

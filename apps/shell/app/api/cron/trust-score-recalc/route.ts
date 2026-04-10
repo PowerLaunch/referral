@@ -99,17 +99,20 @@ export async function GET(request: NextRequest): Promise<Response> {
             }
           }
 
-          // (b) +10 if total gameplay_minutes last calendar month > 2x min_gameplay_minutes
-          const { data: gameplay, error: gameplayError } = await adminClient
+          // (b) +10 if gameplay minutes during previous calendar month > 2x min_gameplay_minutes
+          const { data: sessionRows, error: gameplayError } = await adminClient
             .from('gameplay_sessions')
-            .select('total_minutes')
+            .select('duration_minutes')
             .eq('user_id', userId)
-            .limit(1)
-            .maybeSingle()
+            .gte('created_at', prevMonthStart.toISOString())
+            .lt('created_at', currentMonthStart.toISOString())
 
-          if (!gameplayError && gameplay) {
-            const totalMinutes = gameplay.total_minutes as number
-            if (totalMinutes > 2 * minGameplayMinutes) {
+          if (!gameplayError && sessionRows) {
+            const monthlyMinutes = sessionRows.reduce(
+              (sum, row) => sum + ((row.duration_minutes as number) ?? 0),
+              0
+            )
+            if (monthlyMinutes > 2 * minGameplayMinutes) {
               const reason = `monthly_gameplay_bonus:${prevMonthKey}`
               try {
                 await adjustTrustScore(adminClient, userId, 10, reason)
