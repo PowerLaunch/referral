@@ -321,12 +321,17 @@ export async function retryFailedPayout(
   // Fetch current payout
   const { data: payout } = await admin
     .from('payouts')
-    .select('status, user_id, amount, retry_count')
+    .select('status, user_id, amount, retry_count, retry_available_at')
     .eq('id', payoutId)
     .single()
 
   if (!payout) return { ok: false, error: 'Payout not found' }
   if (payout.status !== 'FAILED') return { ok: false, error: 'Only FAILED payouts can be retried' }
+
+  // Enforce 24-hour retry cooldown
+  if (payout.retry_available_at && new Date(payout.retry_available_at as string) > new Date()) {
+    return { ok: false, error: 'Retry cooldown has not expired. Available at: ' + payout.retry_available_at }
+  }
 
   // Atomic status guard + increment retry_count
   const { data: updated, error: updateError } = await admin
