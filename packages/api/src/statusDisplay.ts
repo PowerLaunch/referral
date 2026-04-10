@@ -81,6 +81,8 @@ export function getDisplayPayoutStatus(
       return 'Failed'
     case 'REJECTED':
       return 'Cancelled'
+    case 'CANCELLED':
+      return 'Cancelled'
     case 'VOIDED':
       return 'Cancelled'
     default:
