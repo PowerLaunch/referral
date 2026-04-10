@@ -12,6 +12,8 @@ export interface IpClassificationResult {
 
 // MVP: /16 precision. MaxMind GeoIP2 deferred to 500+ users.
 // Each range checks first two octets: start[0].start[1] through end[0].end[1]
+// CONSTRAINT: all ranges must share the same first octet (start[0] === end[0]).
+// Cross-octet ranges are not supported by the matching logic.
 const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number]; provider: string }> = [
   // AWS — major /16 blocks only, not entire /8. See ip-ranges.amazonaws.com for authoritative list.
   { start: [3, 0], end: [3, 5], provider: 'AWS' },
@@ -50,6 +52,15 @@ const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number];
   { start: [172, 104], end: [172, 104], provider: 'Linode' },
   { start: [176, 58], end: [176, 58], provider: 'Linode' },
 ]
+
+// Validate at module load — crash immediately if a cross-octet range is added
+for (const range of DATACENTER_RANGES) {
+  if (range.start[0] !== range.end[0]) {
+    throw new Error(
+      `DATACENTER_RANGES: cross-octet range not supported: ${range.provider} ${range.start.join('.')} → ${range.end.join('.')}`
+    )
+  }
+}
 
 /**
  * Extract the /24 range from an IPv4 address.
