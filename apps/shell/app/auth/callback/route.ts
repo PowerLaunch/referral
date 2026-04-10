@@ -8,6 +8,7 @@ import {
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
+import { adjustTrustScore } from '@referral/api/trustScore'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -136,6 +137,25 @@ export async function GET(request: Request) {
               console.error('Failed to award signup bonus (non-duplicate error):', error)
             }
         }
+      }
+
+      // VIP trust score initialization
+      // If the user is_vip (set by admin or influencer code), give +300 trust score
+      // to bring them from default 200 to 500 (TRUSTED tier).
+      try {
+        const vipAdminClient = createAdminClient()
+        const { data: vipProfile } = await vipAdminClient
+          .from('profiles')
+          .select('is_vip')
+          .eq('id', user.id)
+          .single()
+
+        if (vipProfile?.is_vip) {
+          await adjustTrustScore(vipAdminClient, user.id, 300, 'vip_signup_bonus')
+        }
+      } catch (vipErr) {
+        console.error('VIP trust score initialization error:', vipErr)
+        // Do not block signup flow
       }
 
       // Create email preferences row for new user (required by triggerE1-E4)

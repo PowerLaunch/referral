@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server'
 // other server-side routes. Never import createAdminClient from apps directly.
 import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
 import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
+import { getPayoutStagingHours } from '@referral/api/trustScore'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -216,7 +217,7 @@ export async function POST(request: Request): Promise<Response> {
       .from('payouts')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+      .in('status', ['STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
 
     if (pendingError) {
       return Response.json({ error: 'Internal error' }, { status: 500 })
@@ -334,18 +335,25 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Payout creation failed' }, { status: 500 })
     }
 
-    // NOTE: This payout is now PENDING or PENDING_MANUAL_APPROVAL.
-    // It will not be executed (funds sent) until:
-    // 1. 24-hour staging window passes (isPayoutStagingComplete check in PR 5-B)
-    // 2. Admin approves (if first payout)
-    // The 15-minute fraud cron runs multiple times in this window.
+    // Step 6 — Apply trust-tier-based staging window
+    // Payouts enter STAGED status with a staged_until timestamp based on user's trust tier.
+    // The recurring-payouts cron promotes STAGED → PENDING after staged_until expires
+    // (or PENDING_MANUAL_APPROVAL for first payouts).
+    const stagingHours = await getPayoutStagingHours(adminClient, user.id)
+    const stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
 
-    // Step 6 — Return success
-    const rawStatus = isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
+    await adminClient
+      .from('payouts')
+      .update({ status: 'STAGED', staged_until: stagedUntil })
+      .eq('id', payoutId as string)
+
+    // Step 7 — Return success
+    // User-facing message does not mention "review" or "fraud"
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: getDisplayPayoutStatus(rawStatus, profile.status as string),
+      status: getDisplayPayoutStatus('STAGED', profile.status as string),
+      estimated_completion: stagedUntil,
     })
   } catch (error) {
     console.error('Payout request error:', error)
