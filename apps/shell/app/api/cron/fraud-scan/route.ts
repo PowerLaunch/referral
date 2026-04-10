@@ -171,7 +171,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     let r19Flagged = 0
-    const todayUtc = new Date().toISOString().slice(0, 10)
 
     for (const [ipRange, { users, provider }] of rangeMap) {
       if (users.size < 5) continue
@@ -179,13 +178,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       const userIds = Array.from(users)
 
       for (const userId of userIds) {
-        // Idempotency: check if already flagged today
+        // Idempotency window matches 7-day cluster detection window
         const { data: existingFlag } = await adminClient
           .from('fraud_flags')
           .select('id')
           .eq('user_id', userId)
           .eq('rule_triggered', 'R19_DATACENTER_CLUSTER')
-          .gte('created_at', `${todayUtc}T00:00:00Z`)
+          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
           .limit(1)
           .maybeSingle()
 
