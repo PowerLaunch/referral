@@ -67,6 +67,8 @@ export function getDisplayPayoutStatus(
 
   // Otherwise, map payout status normally
   switch (actualPayoutStatus) {
+    case 'STAGED':
+      return 'Processing' // Hide staging from user
     case 'PENDING':
       return 'Processing'
     case 'PENDING_MANUAL_APPROVAL':
@@ -77,6 +79,8 @@ export function getDisplayPayoutStatus(
       return 'Completed'
     case 'FAILED':
       return 'Failed'
+    case 'REJECTED':
+      return 'Cancelled'
     case 'VOIDED':
       return 'Cancelled'
     default:

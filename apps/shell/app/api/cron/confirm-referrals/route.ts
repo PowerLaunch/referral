@@ -35,7 +35,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Read at runtime, never hardcode — spec Section 2.1
   const { data: gameConfig, error: configError } = await adminClient
     .from('game_config')
-    .select('min_gameplay_minutes, min_session_count, referral_confirmations_paused')
+    .select('min_gameplay_minutes, min_session_count, monthly_referral_cap, referral_confirmations_paused')
     .limit(1)
     .single()
 
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const minGameplayMinutes = gameConfig?.min_gameplay_minutes ?? 10
   const minSessionCount = gameConfig?.min_session_count ?? 3
+  const fallbackReferralCap = gameConfig?.monthly_referral_cap ?? 50
 
   // Circuit breaker check: if referral confirmations are paused, exit early
   if (gameConfig?.referral_confirmations_paused) {
@@ -354,7 +355,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       }
 
       // Dynamic cap based on referrer's trust tier (PROBATION: 2, STANDARD: 5, TRUSTED: 10, VETERAN: 20, VIP: 200)
-      const dynamicCap = await getDynamicReferralCap(adminClient, referral.referrer_id as string)
+      // Falls back to static monthly_referral_cap from game_config if referrer profile not found.
+      let dynamicCap = fallbackReferralCap
+      try {
+        dynamicCap = await getDynamicReferralCap(adminClient, referral.referrer_id as string)
+      } catch (capLookupErr) {
+        console.error(
+          `Referral ${referral.id}: getDynamicReferralCap failed for referrer ${referral.referrer_id}, using fallback cap ${fallbackReferralCap}:`,
+          capLookupErr
+        )
+      }
 
       if ((confirmedCount ?? 0) >= dynamicCap) {
         console.log(
