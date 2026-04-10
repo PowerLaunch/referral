@@ -175,18 +175,26 @@ export async function GET(request: NextRequest): Promise<Response> {
 
         if (newFlags && newFlags.length > 0) {
           // New fraud flags detected — cancel payout and refund credits
-          const { error: cancelError } = await adminClient
+          // Use .select() to verify a row was actually updated (optimistic lock).
+          // If another concurrent cron already cancelled it, cancelledRows will be empty.
+          const { data: cancelledRows, error: cancelError } = await adminClient
             .from('payouts')
             .update({ status: 'REJECTED', admin_notes: 'Auto-cancelled: fraud flags detected during staging' })
             .eq('id', payout.id)
             .eq('status', 'STAGED')
+            .select('id')
 
           if (cancelError) {
             console.error(`Failed to cancel staged payout ${payout.id}:`, cancelError.message)
             continue
           }
 
-          // Refund credits
+          if (!cancelledRows || cancelledRows.length === 0) {
+            console.log(`Payout ${payout.id} already cancelled by concurrent execution, skipping refund`)
+            continue
+          }
+
+          // Refund credits — only if we actually cancelled the payout above
           try {
             await awardCredits(
               payout.user_id as string,

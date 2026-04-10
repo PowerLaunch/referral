@@ -91,9 +91,9 @@ DECLARE
   v_standard_max integer;
   v_trusted_max integer;
 BEGIN
-  -- Read current score
+  -- Read current score (FOR UPDATE prevents lost updates from concurrent calls)
   SELECT trust_score, trust_tier INTO v_score_before, v_tier_before
-  FROM public.profiles WHERE id = p_user_id;
+  FROM public.profiles WHERE id = p_user_id FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'User not found: %', p_user_id;
