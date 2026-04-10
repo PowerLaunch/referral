@@ -350,7 +350,7 @@ export async function POST(request: Request): Promise<Response> {
         .from('payouts')
         .update({ status: 'STAGED', staged_until: stagedUntil })
         .eq('id', payoutId as string)
-        .eq('status', 'PENDING')
+        .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL'])
         .select('id')
 
       if (stageError) {
@@ -358,10 +358,7 @@ export async function POST(request: Request): Promise<Response> {
       }
 
       if (!stagedRows || stagedRows.length === 0) {
-        return Response.json(
-          { error: 'Payout is no longer in PENDING status' },
-          { status: 409 }
-        )
+        throw new Error('Payout is no longer in a stageable status')
       }
     } catch (stagingErr) {
       console.error('Staging failed, cancelling payout and refunding credits:', stagingErr)
