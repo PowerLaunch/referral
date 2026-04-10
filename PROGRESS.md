@@ -210,3 +210,4 @@ Complete these before starting PR 5-A:
 | 2026-04-09 | chore/security-todos | PR #27 merged | chore: security TODO reminders for 5-A, 5-B, post-Phase-5 |
 | 2026-04-09 | chore/branch-rule | PR #28 merged | chore: enforce branch-off-main rule |
 | 2026-04-09 | feat/hardening | PR #30 merged | feat: security audit + cron hardening (8-A/8-B) |
+| 2026-04-10 | feat/admin-cashouts-fraud | PR #29 merged | feat: cashout review + fraud management (7-D + 7-E) |
