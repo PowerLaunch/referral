@@ -6,18 +6,22 @@ export async function signupAction(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const referralCode = formData.get('referralCode') as string | null
+  const referralSource = formData.get('referralSource') as string | null
+  const sourceClassification = formData.get('sourceClassification') as string | null
 
   const supabase = await createClient()
+
+  // Build user_metadata with referral code and source attribution
+  const metadata: Record<string, string> = {}
+  if (referralCode) metadata.referral_code = referralCode
+  if (referralSource) metadata.referral_source = referralSource
+  if (sourceClassification) metadata.source_classification = sourceClassification
 
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: referralCode
-      ? {
-          data: {
-            referral_code: referralCode,
-          },
-        }
+    options: Object.keys(metadata).length > 0
+      ? { data: metadata }
       : undefined,
   })
 

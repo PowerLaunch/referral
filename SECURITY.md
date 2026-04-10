@@ -76,6 +76,14 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **Fires**: On 15-minute cron alongside R1-R6
 - **Implemented in**: PR 4-D
 
+### R17 — Red Source Attribution
+- **Trigger**: Referrer has 3+ referees from red-flagged source domains (standard accounts) or 10+ (VIP accounts)
+- **Action**: WARNING fraud_flag + -100 trust (standard) or INFO fraud_flag + -30 trust (VIP). One flag per referrer per calendar month.
+- **Fires**: On 15-minute cron alongside R1-R6
+- **Source classification**: GREEN (known social platforms), YELLOW (unknown), RED (admin-managed blocklist)
+- **Admin API**: GET/POST/DELETE at `/api/admin/source-blocklist` for managing blocked domains
+- **Implemented in**: PR 10-C
+
 ---
 
 ## 3. Account-Level Controls
@@ -354,7 +362,7 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 ## Summary
 
 This platform implements defense-in-depth security:
-- **7 automated fraud rules** catching velocity, device clustering, Sybil attacks, disposables, zero-gameplay, cashout spikes, and geo-mismatches
+- **8 automated fraud rules** catching velocity, device clustering, Sybil attacks, disposables, zero-gameplay, cashout spikes, geo-mismatches, and red-source attribution
 - **Graduated trust score system** (0-1000) with tier-based staging, caps, and lock period reduction
 - **Trust levels and status columns** enabling granular access control
 - **Payout guards** enforcing KYC, account age, subscription, and cooldown requirements

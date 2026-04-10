@@ -89,6 +89,10 @@ export async function GET(request: Request) {
                 p_country_code: countryCode,
               })
 
+            // Source attribution from user_metadata (set by /ref/[code] → signup flow)
+            const referralSource = (user.user_metadata?.referral_source as string | null) ?? null
+            const sourceClassification = (user.user_metadata?.source_classification as string | null) ?? null
+
             if (honeymoonError) {
               console.error('Honeymoon referral insert failed:', honeymoonError)
               // Fail open: insert referral directly without honeymoon check.
@@ -105,6 +109,8 @@ export async function GET(request: Request) {
                   payout_eligible_at: payoutEligibleAt.toISOString(),
                   country_code: countryCode,
                   lock_timer_frozen: false,
+                  referral_source: referralSource,
+                  source_classification: sourceClassification,
                 })
               if (fallbackError) {
                 console.error('Fallback referral insert also failed:', fallbackError)
@@ -113,6 +119,21 @@ export async function GET(request: Request) {
               console.log(
                 `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${honeymoonResult.unlocks_at}`
               )
+            }
+
+            // Update source attribution on honeymoon-created referral row
+            if (!honeymoonError && honeymoonResult?.created && (referralSource || sourceClassification)) {
+              try {
+                await adminClient
+                  .from('referrals')
+                  .update({
+                    referral_source: referralSource,
+                    source_classification: sourceClassification,
+                  })
+                  .eq('referee_id', user.id)
+              } catch {
+                // Source tracking failure must not block referral creation
+              }
             }
           }
         }

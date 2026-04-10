@@ -15,6 +15,7 @@ import {
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import { awardCredits } from '@referral/api/credits'
 import { logAdminAction } from '@referral/api/riskScore'
+import { adjustTrustScore } from '@referral/api/trustScore'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -138,10 +139,113 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
   }
 
+  const adminClient = createAdminClient()
+
+  // R17: Red Source Attribution
+  // Flags referrers whose referees consistently come from red-flagged source domains.
+  // Standard accounts: 3+ red-source referees → WARNING (-100 trust)
+  // VIP accounts: 10+ red-source referees → INFO (-30 trust)
+  // One flag per referrer per calendar month.
+  try {
+    const { data: redReferrals, error: redError } = await adminClient
+      .from('referrals')
+      .select('referrer_id, referral_source')
+      .eq('source_classification', 'RED')
+
+    if (redError) {
+      throw new Error(`Failed to fetch red-source referrals: ${redError.message}`)
+    }
+
+    // Group by referrer_id → count + distinct source domains
+    const referrerMap = new Map<string, { count: number; domains: Set<string>; referralIds: string[] }>()
+    for (const row of redReferrals ?? []) {
+      const referrerId = row.referrer_id as string
+      if (!referrerMap.has(referrerId)) {
+        referrerMap.set(referrerId, { count: 0, domains: new Set(), referralIds: [] })
+      }
+      const entry = referrerMap.get(referrerId)!
+      entry.count++
+      if (row.referral_source) {
+        entry.domains.add(row.referral_source as string)
+      }
+    }
+
+    let r17Flagged = 0
+    const monthStart = new Date()
+    monthStart.setUTCDate(1)
+    monthStart.setUTCHours(0, 0, 0, 0)
+    const monthStartIso = monthStart.toISOString()
+
+    for (const [referrerId, { count, domains }] of referrerMap) {
+      if (count < 3) continue
+
+      // Idempotency: one flag per referrer per calendar month
+      const { data: existingFlag } = await adminClient
+        .from('fraud_flags')
+        .select('id')
+        .eq('user_id', referrerId)
+        .eq('rule_triggered', 'R17_RED_SOURCE')
+        .gte('created_at', monthStartIso)
+        .limit(1)
+        .maybeSingle()
+
+      if (existingFlag) continue
+
+      // Check VIP status for threshold and severity
+      const { data: profile } = await adminClient
+        .from('profiles')
+        .select('is_vip')
+        .eq('id', referrerId)
+        .single()
+
+      const isVip = profile?.is_vip === true
+      // VIP threshold is 10, standard is 3
+      if (isVip && count < 10) continue
+
+      const severity = isVip ? 'INFO' : 'WARNING'
+      const trustDelta = isVip ? -30 : -100
+
+      const { error: flagError } = await adminClient
+        .from('fraud_flags')
+        .insert({
+          user_id: referrerId,
+          rule_triggered: 'R17_RED_SOURCE',
+          severity,
+          details: {
+            red_source_count: count,
+            domains: Array.from(domains),
+          },
+        })
+
+      if (flagError) {
+        if (flagError.code !== '23505') {
+          console.error(`R17 flag insert error for ${referrerId}:`, flagError.message)
+        }
+        continue
+      }
+
+      try {
+        await adjustTrustScore(adminClient, referrerId, trustDelta, 'fraud_flag_r17_red_source', 'R17_RED_SOURCE')
+      } catch (trustErr) {
+        console.error(`R17 trust score adjustment error for ${referrerId}:`, trustErr)
+      }
+
+      r17Flagged++
+    }
+
+    results.push({ rule: 'R17_RED_SOURCE', flagged: r17Flagged })
+    totalFlagged += r17Flagged
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    results.push({ rule: 'R17_RED_SOURCE', flagged: 0, error: errorMessage })
+    console.error('R17 failed:', error)
+    Sentry.captureException(error)
+    ruleFailures++
+  }
+
   // Step 3 — Promote STAGED payouts whose staging window has expired
   // Runs here (every 15 min) instead of monthly recurring-payouts cron so
   // VETERAN payouts (1-hour staging) are promoted promptly.
-  const adminClient = createAdminClient()
   let stagedPromoted = 0
   let stagedCancelled = 0
 
