@@ -2,8 +2,6 @@
 // Captures the Referer header for source attribution, then redirects to /signup
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { classifyReferralSource } from '@referral/api/sourceClassification'
 
 export async function GET(
   request: NextRequest,
@@ -19,30 +17,17 @@ export async function GET(
   const referer = request.headers.get('referer')
 
   let src = ''
-  let sc = ''
 
   if (referer) {
-    try {
-      const adminClient = createAdminClient()
-      const result = await classifyReferralSource(adminClient, referer)
-      if (result.source) {
-        src = result.source.slice(0, 500)
-      }
-      sc = result.classification
-    } catch {
-      // Source classification failure must not block referral redirect
-      sc = 'YELLOW'
-    }
+    // Only capture the raw source URL — classification is done server-side in auth/callback
+    src = referer.length > 500 ? referer.slice(0, 500) : referer
   }
 
-  // Build redirect URL with referral code and source attribution
+  // Build redirect URL with referral code and raw source URL
   const redirectUrl = new URL('/signup', request.url)
   redirectUrl.searchParams.set('ref', code)
   if (src) {
     redirectUrl.searchParams.set('src', src)
-  }
-  if (sc) {
-    redirectUrl.searchParams.set('sc', sc)
   }
 
   return NextResponse.redirect(redirectUrl)

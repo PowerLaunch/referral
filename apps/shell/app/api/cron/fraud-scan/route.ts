@@ -147,10 +147,13 @@ export async function GET(request: NextRequest): Promise<Response> {
   // VIP accounts: 10+ red-source referees → INFO (-30 trust)
   // One flag per referrer per calendar month.
   try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const { data: redReferrals, error: redError } = await adminClient
       .from('referrals')
       .select('referrer_id, referral_source')
       .eq('source_classification', 'RED')
+      .gte('created_at', thirtyDaysAgo)
+      .limit(10000) // prevents silent PostgREST truncation at default 1000-row cap
 
     if (redError) {
       throw new Error(`Failed to fetch red-source referrals: ${redError.message}`)

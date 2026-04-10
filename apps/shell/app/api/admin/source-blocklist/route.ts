@@ -1,6 +1,7 @@
 import { requireAdmin } from '../requireAdmin'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAdminAction } from '@referral/api/riskScore'
+import { extractDomain } from '@referral/api/sourceClassification'
 
 export async function GET(): Promise<Response> {
   const result = await requireAdmin()
@@ -42,14 +43,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'domain must be 255 characters or less' }, { status: 400 })
   }
 
-  // Normalize: lowercase, strip www./https://http://
-  let domain = rawDomain.trim().toLowerCase()
-  domain = domain.replace(/^https?:\/\//, '')
-  if (domain.startsWith('www.')) {
-    domain = domain.slice(4)
+  // Normalize using the same extractDomain used by classifyReferralSource
+  const domain = extractDomain(rawDomain.trim())
+  if (!domain) {
+    return Response.json({ error: 'Invalid domain' }, { status: 400 })
   }
-  // Strip trailing slash
-  domain = domain.replace(/\/.*$/, '')
 
   const adminClient = createAdminClient()
 
