@@ -18,7 +18,8 @@
     "./chargebackHandler": "./src/chargebackHandler.ts",
     "./payoutExecutor": "./src/payoutExecutor.ts",
     "./cronHealth": "./src/cronHealth.ts",
-    "./trustScore": "./src/trustScore.ts"
+    "./trustScore": "./src/trustScore.ts",
+    "./ipClassification": "./src/ipClassification.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

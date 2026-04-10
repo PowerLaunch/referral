@@ -1,6 +1,8 @@
 // Lock period calculation for referral payouts
 // Country tiers from scope Section 2.6. Add new countries to the appropriate tier map — do not scatter country codes elsewhere.
 
+import { classifyIp } from './ipClassification'
+
 // Country risk tier maps — typed as Record<string, number> for type safety
 const LOW_RISK_COUNTRIES: Record<string, number> = {
   US: 30,
@@ -75,7 +77,7 @@ export function getLockPeriodDays(
  * @returns ISO 3166-1 alpha-2 country code or null
  */
 export function getCountryFromIp(ip: string): string | null {
-  // TODO: replace with real IP geolocation service in Phase 4. Returning null defaults to 60-day high-risk tier.
+  // TODO: Replace with MaxMind GeoIP2 API at 500+ users. Currently returns null → defaults to 60-day high-risk tier.
   return null
 }
 
@@ -85,6 +87,6 @@ export function getCountryFromIp(ip: string): string | null {
  * @returns true if datacenter/VPN detected, false otherwise
  */
 export function isVpnDetected(ipAddress: string): boolean {
-  // TODO: replace with datacenter CIDR list check in Phase 4.
-  return false
+  const result = classifyIp(ipAddress)
+  return result.classification === 'VPN_PROXY' || result.classification === 'DATACENTER'
 }
