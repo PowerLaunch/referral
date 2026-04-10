@@ -70,6 +70,7 @@ export async function classifyReferralSource(
     const { data: blockedDomains, error } = await adminClient
       .from('source_blocklist')
       .select('domain')
+      .limit(10000) // prevents silent PostgREST truncation at default 1000-row cap
 
     if (!error && blockedDomains) {
       for (const row of blockedDomains) {
