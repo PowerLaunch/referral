@@ -4,7 +4,6 @@ import { NextResponse } from 'next/server'
 import {
   getLockPeriodDays,
   getCountryFromIp,
-  isVpnDetected,
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
@@ -57,9 +56,14 @@ export async function GET(request: Request) {
         // Profile may not exist yet for brand-new users — default to non-VIP
       }
 
-      // IP infrastructure classification — record and penalize datacenter/VPN signups
+      // IP infrastructure classification — record and penalize datacenter/VPN signups.
+      // ipResult is reused below for vpnDetected to avoid calling classifyIp() twice.
+      let vpnDetected = false
       try {
         const ipResult = await recordAndClassifyIp(adminClient, user.id, ip, 'SIGNUP')
+
+        // Derive vpnDetected from the single classification call — no redundant classifyIp()
+        vpnDetected = ipResult.classification === 'DATACENTER' || ipResult.classification === 'VPN_PROXY'
 
         if (ipResult.classification === 'DATACENTER' && !isVip) {
           // Idempotency: partial unique index on trust_score_events prevents duplicate penalties
@@ -103,11 +107,11 @@ export async function GET(request: Request) {
             console.warn(`Self-referral attempt blocked for user ${user.id}`)
             // Do not create referral row. Continue to dashboard normally.
           } else {
-            // Get country and VPN detection
+            // Get country code (stub returns null → defaults to 60-day high-risk tier)
             const countryCode = getCountryFromIp(ip)
-            const vpnDetected = isVpnDetected(ip)
 
             // Calculate lock period with trust-tier-based reduction for the referrer.
+            // vpnDetected is derived from the single recordAndClassifyIp() call above.
             // New users (STANDARD tier) get baseLockDays unchanged — no regression.
             const baseLockDays = getLockPeriodDays(countryCode, vpnDetected)
             let lockPeriodDays = baseLockDays

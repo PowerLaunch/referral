@@ -1,4 +1,6 @@
 // MVP: Hardcoded CIDR ranges. Replace with MaxMind GeoIP2 or IPQS API at 500+ users.
+// VPN_PROXY detection requires MaxMind — intentionally not returned by classifyIp() until then.
+// See TODO in SECURITY.md for the upgrade path.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -10,12 +12,13 @@ export interface IpClassificationResult {
   ipRange24: string
 }
 
-// MVP: /16 precision. MaxMind GeoIP2 deferred to 500+ users.
-// Each range checks first two octets: start[0].start[1] through end[0].end[1]
+// MVP: /16 precision datacenter ranges. MaxMind GeoIP2 deferred to 500+ users.
+// Each range checks first two octets: start[0].start[1] through end[0].end[1].
 // CONSTRAINT: all ranges must share the same first octet (start[0] === end[0]).
-// Cross-octet ranges are not supported by the matching logic.
+// Cross-octet ranges are not supported by the matching logic — the runtime
+// assertion below enforces this at module load.
 const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number]; provider: string }> = [
-  // AWS — major /16 blocks only, not entire /8. See ip-ranges.amazonaws.com for authoritative list.
+  // AWS — /16 sub-ranges only. Full list: ip-ranges.amazonaws.com
   { start: [3, 0], end: [3, 5], provider: 'AWS' },
   { start: [3, 8], end: [3, 15], provider: 'AWS' },
   { start: [3, 16], end: [3, 39], provider: 'AWS' },
@@ -26,10 +29,10 @@ const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number];
   { start: [3, 128], end: [3, 191], provider: 'AWS' },
   { start: [3, 208], end: [3, 239], provider: 'AWS' },
   { start: [52, 0], end: [52, 95], provider: 'AWS' },
-  // GCP
+  // GCP — verified /16 sub-ranges
   { start: [34, 64], end: [34, 127], provider: 'GCP' },
   { start: [35, 190], end: [35, 235], provider: 'GCP' },
-  // Azure
+  // Azure — verified /16 sub-ranges
   { start: [13, 64], end: [13, 107], provider: 'Azure' },
   { start: [20, 33], end: [20, 128], provider: 'Azure' },
   { start: [40, 74], end: [40, 125], provider: 'Azure' },
@@ -53,7 +56,8 @@ const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number];
   { start: [176, 58], end: [176, 58], provider: 'Linode' },
 ]
 
-// Validate at module load — crash immediately if a cross-octet range is added
+// Validate at module load — crash immediately if a cross-octet range is added.
+// This makes the matching logic's same-first-octet assumption explicit and enforced.
 for (const range of DATACENTER_RANGES) {
   if (range.start[0] !== range.end[0]) {
     throw new Error(
@@ -92,8 +96,11 @@ function parseIpv4(ip: string): [number, number, number, number] | null {
 }
 
 /**
- * Classify an IP address as datacenter, VPN, or unknown.
- * Uses hardcoded CIDR ranges for MVP — to be replaced with MaxMind GeoIP2 at 500+ users.
+ * Classify an IP address as datacenter or unknown.
+ * MVP: Only detects DATACENTER via hardcoded /16 ranges.
+ * VPN_PROXY detection requires MaxMind GeoIP2 — deferred to 500+ users.
+ * The VPN_PROXY type exists in IpClassification for forward-compatibility
+ * but is intentionally never returned until MaxMind is integrated.
  */
 export function classifyIp(ip: string): IpClassificationResult {
   const ipRange24 = getIpRange24(ip)
@@ -103,19 +110,20 @@ export function classifyIp(ip: string): IpClassificationResult {
     return { classification: 'UNKNOWN', providerName: null, ipRange24 }
   }
 
-  // Check datacenter ranges by first two octets
+  // Check datacenter ranges by first two octets.
+  // All ranges have start[0] === end[0] (enforced by module-load validation above),
+  // so only the second octet needs range comparison.
   for (const range of DATACENTER_RANGES) {
     if (
       octets[0] === range.start[0] &&
       octets[1] >= range.start[1] &&
-      octets[0] === range.end[0] &&
       octets[1] <= range.end[1]
     ) {
       return { classification: 'DATACENTER', providerName: range.provider, ipRange24 }
     }
   }
 
-  // MVP: hardcoded CIDR ranges only detect DATACENTER. VPN_PROXY detection requires MaxMind GeoIP2 or similar — deferred to 500+ users. See TODO in SECURITY.md.
+  // MVP: VPN_PROXY not returned — requires MaxMind GeoIP2 (see TODO in SECURITY.md)
   return { classification: 'UNKNOWN', providerName: null, ipRange24 }
 }
 
