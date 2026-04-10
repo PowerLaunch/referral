@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   getLockPeriodDays,
   getCountryFromIp,
-  isVpnDetected,
 } from '@referral/api/lockPeriod'
 import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
 import { adjustTrustScore, getDynamicLockPeriodDays } from '@referral/api/trustScore'
+import { recordAndClassifyIp } from '@referral/api/ipClassification'
 import { classifyReferralSource } from '@referral/api/sourceClassification'
 
 export async function GET(request: NextRequest) {
@@ -36,13 +36,60 @@ export async function GET(request: NextRequest) {
   const user = sessionData.user
   if (user) {
     try {
+      const adminClient = createAdminClient()
+
+      // Extract IP early — used by both IP classification and referral lock period
+      const forwardedFor = request.headers.get('x-forwarded-for')
+      const ip = forwardedFor
+        ? forwardedFor.split(',')[0]?.trim() ?? '0.0.0.0'
+        : '0.0.0.0'
+
+      // Fetch VIP status once — reused by IP classification and VIP trust bonus below
+      let isVip = false
+      try {
+        const { data: vipProfile } = await adminClient
+          .from('profiles')
+          .select('is_vip')
+          .eq('id', user.id)
+          .single()
+        isVip = vipProfile?.is_vip === true
+      } catch {
+        // Profile may not exist yet for brand-new users — default to non-VIP
+      }
+
+      // IP infrastructure classification — record and penalize datacenter/VPN signups.
+      // ipResult is reused below for vpnDetected to avoid calling classifyIp() twice.
+      let vpnDetected = false
+      try {
+        const ipResult = await recordAndClassifyIp(adminClient, user.id, ip, 'SIGNUP')
+        vpnDetected = ipResult.classification === 'VPN_PROXY' || ipResult.classification === 'DATACENTER'
+
+        if (ipResult.classification === 'DATACENTER' && !isVip) {
+          // Idempotency: partial unique index on trust_score_events prevents duplicate penalties
+          const { data: existingPenalty } = await adminClient
+            .from('trust_score_events')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('reason', 'datacenter_ip_signup')
+            .limit(1)
+            .maybeSingle()
+
+          if (!existingPenalty) {
+            await adjustTrustScore(adminClient, user.id, -50, 'datacenter_ip_signup', 'R19_DATACENTER_IP')
+          }
+        }
+        // TODO [Phase 5+]: Add VPN_PROXY trust penalty once MaxMind GeoIP2 is integrated
+      } catch (ipErr) {
+        console.error('IP classification error:', ipErr)
+        // Do not block signup flow
+      }
+
       const referralCode = user.user_metadata?.referral_code as string | null
 
       if (referralCode) {
         // user_metadata is client-writable but the UNIQUE(referee_id) constraint on referrals
         // limits each user to one referral row. Retroactive injection risk is accepted here
         // and will be addressed in Phase 4 by storing referral_code server-side at click time.
-        const adminClient = createAdminClient()
 
         // Look up referrer by referral_code
         const { data: referrerProfile, error: referrerError } =
@@ -59,17 +106,11 @@ export async function GET(request: NextRequest) {
             console.warn(`Self-referral attempt blocked for user ${user.id}`)
             // Do not create referral row. Continue to dashboard normally.
           } else {
-            // Extract IP from request headers
-            const forwardedFor = request.headers.get('x-forwarded-for')
-            const ip = forwardedFor
-              ? forwardedFor.split(',')[0]?.trim() ?? '0.0.0.0'
-              : '0.0.0.0'
-
-            // Get country and VPN detection (stubs for now)
+            // Get country code (stub returns null → defaults to 60-day high-risk tier)
             const countryCode = getCountryFromIp(ip)
-            const vpnDetected = isVpnDetected(ip)
 
             // Calculate lock period with trust-tier-based reduction for the referrer.
+            // vpnDetected is derived from the single recordAndClassifyIp() call above.
             // New users (STANDARD tier) get baseLockDays unchanged — no regression.
             const baseLockDays = getLockPeriodDays(countryCode, vpnDetected)
             let lockPeriodDays = baseLockDays
@@ -143,7 +184,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Award signup bonus on initial email verification only
-      const { data: gameConfig, error: configError } = await createAdminClient()
+      const { data: gameConfig, error: configError } = await adminClient
         .from('game_config')
         .select('signup_bonus_amount')
         .limit(1)
@@ -173,18 +214,12 @@ export async function GET(request: NextRequest) {
       // VIP trust score initialization
       // If the user is_vip (set by admin or influencer code), give +300 trust score
       // to bring them from default 200 to 500 (TRUSTED tier).
-      try {
-        const vipAdminClient = createAdminClient()
-        const { data: vipProfile } = await vipAdminClient
-          .from('profiles')
-          .select('is_vip')
-          .eq('id', user.id)
-          .single()
-
-        if (vipProfile?.is_vip) {
+      // Reuses isVip fetched above to avoid a redundant DB query.
+      if (isVip) {
+        try {
           // Check idempotency: partial unique index on (user_id, reason) WHERE reason = 'vip_signup_bonus'
           // prevents duplicates at DB level. Application-level check avoids unnecessary RPC call.
-          const { data: existingBonus } = await vipAdminClient
+          const { data: existingBonus } = await adminClient
             .from('trust_score_events')
             .select('id')
             .eq('user_id', user.id)
@@ -193,12 +228,12 @@ export async function GET(request: NextRequest) {
             .maybeSingle()
 
           if (!existingBonus) {
-            await adjustTrustScore(vipAdminClient, user.id, 300, 'vip_signup_bonus')
+            await adjustTrustScore(adminClient, user.id, 300, 'vip_signup_bonus')
           }
+        } catch (vipErr) {
+          console.error('VIP trust score initialization error:', vipErr)
+          // Do not block signup flow
         }
-      } catch (vipErr) {
-        console.error('VIP trust score initialization error:', vipErr)
-        // Do not block signup flow
       }
 
       // Create email preferences row for new user (required by triggerE1-E4)

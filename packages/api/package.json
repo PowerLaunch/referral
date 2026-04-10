@@ -19,6 +19,7 @@
     "./payoutExecutor": "./src/payoutExecutor.ts",
     "./cronHealth": "./src/cronHealth.ts",
     "./trustScore": "./src/trustScore.ts",
+    "./ipClassification": "./src/ipClassification.ts",
     "./sourceClassification": "./src/sourceClassification.ts"
   },
   "scripts": {

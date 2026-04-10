@@ -2,23 +2,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type TrustTier = 'PROBATION' | 'STANDARD' | 'TRUSTED' | 'VETERAN'
 
-interface TierConfig {
-  trust_tier_probation_max: number
-  trust_tier_standard_max: number
-  trust_tier_trusted_max: number
-}
-
-/**
- * Pure function. Returns the tier for a given score using config thresholds.
- * Internal reference only — tier computation is authoritative in the adjust_trust_score RPC.
- */
-function computeTier(score: number, config: TierConfig): TrustTier {
-  if (score <= config.trust_tier_probation_max) return 'PROBATION'
-  if (score <= config.trust_tier_standard_max) return 'STANDARD'
-  if (score <= config.trust_tier_trusted_max) return 'TRUSTED'
-  return 'VETERAN'
-}
-
 /**
  * Atomically adjust a user's trust score via the adjust_trust_score RPC.
  * Throws on error (do not silently swallow).
