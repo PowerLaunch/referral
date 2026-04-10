@@ -167,16 +167,16 @@ export async function GET(request: NextRequest) {
 
             // Update source attribution on honeymoon-created referral row
             if (!honeymoonError && honeymoonResult?.created) {
-              try {
-                await adminClient
-                  .from('referrals')
-                  .update({
-                    referral_source: referralSource,
-                    source_classification: sourceClassification,
-                  })
-                  .eq('referee_id', user.id)
-              } catch {
-                // Source tracking failure must not block referral creation
+              const { error: sourceUpdateError } = await adminClient
+                .from('referrals')
+                .update({
+                  referral_source: referralSource,
+                  source_classification: sourceClassification,
+                })
+                .eq('referee_id', user.id)
+
+              if (sourceUpdateError) {
+                console.error('Failed to update referral source:', sourceUpdateError.message)
               }
             }
           }

@@ -65,14 +65,7 @@ export async function classifyReferralSource(
     return { source, classification: 'YELLOW' }
   }
 
-  // Check GREEN domains — match domain itself or parent domain
-  for (const greenDomain of GREEN_DOMAINS) {
-    if (domain === greenDomain || domain.endsWith(`.${greenDomain}`)) {
-      return { source, classification: 'GREEN' }
-    }
-  }
-
-  // Check RED domains from admin-managed blocklist
+  // Admin blocklist takes priority over hardcoded GREEN list
   try {
     const { data: blockedDomains, error } = await adminClient
       .from('source_blocklist')
@@ -89,6 +82,13 @@ export async function classifyReferralSource(
     }
   } catch {
     // Blocklist lookup failure → default to YELLOW (fail open)
+  }
+
+  // Check GREEN domains — match domain itself or parent domain
+  for (const greenDomain of GREEN_DOMAINS) {
+    if (domain === greenDomain || domain.endsWith(`.${greenDomain}`)) {
+      return { source, classification: 'GREEN' }
+    }
   }
 
   return { source, classification: 'YELLOW' }
