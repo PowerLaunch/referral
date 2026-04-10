@@ -13,8 +13,16 @@ export interface IpClassificationResult {
 // MVP: /16 precision. MaxMind GeoIP2 deferred to 500+ users.
 // Each range checks first two octets: start[0].start[1] through end[0].end[1]
 const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number]; provider: string }> = [
-  // AWS (3.x.x.x is entirely AWS)
-  { start: [3, 0], end: [3, 255], provider: 'AWS' },
+  // AWS — major /16 blocks only, not entire /8. See ip-ranges.amazonaws.com for authoritative list.
+  { start: [3, 0], end: [3, 5], provider: 'AWS' },
+  { start: [3, 8], end: [3, 15], provider: 'AWS' },
+  { start: [3, 16], end: [3, 39], provider: 'AWS' },
+  { start: [3, 48], end: [3, 55], provider: 'AWS' },
+  { start: [3, 64], end: [3, 79], provider: 'AWS' },
+  { start: [3, 80], end: [3, 95], provider: 'AWS' },
+  { start: [3, 96], end: [3, 127], provider: 'AWS' },
+  { start: [3, 128], end: [3, 191], provider: 'AWS' },
+  { start: [3, 208], end: [3, 239], provider: 'AWS' },
   { start: [52, 0], end: [52, 95], provider: 'AWS' },
   // GCP
   { start: [34, 64], end: [34, 127], provider: 'GCP' },

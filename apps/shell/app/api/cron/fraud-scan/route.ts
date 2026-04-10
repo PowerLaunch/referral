@@ -136,10 +136,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     ruleFailures++
   }
 
-  if (ruleFailures > 0) {
-    console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
-  }
-
   const adminClient = createAdminClient()
 
   // R19: Datacenter IP Cluster Detection
@@ -363,6 +359,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   } catch (err) {
     console.error('Staged payout promotion error:', err)
     Sentry.captureException(err)
+  }
+
+  if (ruleFailures > 0) {
+    console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
   }
 
   await recordCronSuccess('fraud-scan', adminClient, process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)
