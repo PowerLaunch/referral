@@ -10,7 +10,7 @@
 import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
-import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
+import { getAdminClient, getBalance, awardCredits, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
 import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
 import { getPayoutStagingHours } from '@referral/api/trustScore'
 
@@ -339,17 +339,29 @@ export async function POST(request: Request): Promise<Response> {
     // Payouts enter STAGED status with a staged_until timestamp based on user's trust tier.
     // The recurring-payouts cron promotes STAGED → PENDING after staged_until expires
     // (or PENDING_MANUAL_APPROVAL for first payouts).
-    const stagingHours = await getPayoutStagingHours(adminClient, user.id)
-    const stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
+    // If staging fails (getPayoutStagingHours throws or STAGED update fails), cancel the
+    // payout and refund credits to avoid a payout stuck in PENDING bypassing staging.
+    let stagedUntil: string
+    try {
+      const stagingHours = await getPayoutStagingHours(adminClient, user.id)
+      stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
 
-    const { error: stageError } = await adminClient
-      .from('payouts')
-      .update({ status: 'STAGED', staged_until: stagedUntil })
-      .eq('id', payoutId as string)
+      const { error: stageError } = await adminClient
+        .from('payouts')
+        .update({ status: 'STAGED', staged_until: stagedUntil })
+        .eq('id', payoutId as string)
 
-    if (stageError) {
-      console.error('Failed to update payout to STAGED:', stageError)
-      return Response.json({ error: 'Failed to stage payout' }, { status: 500 })
+      if (stageError) {
+        throw stageError
+      }
+    } catch (stagingErr) {
+      console.error('Staging failed, cancelling payout and refunding credits:', stagingErr)
+      await adminClient
+        .from('payouts')
+        .update({ status: 'CANCELLED' })
+        .eq('id', payoutId as string)
+      await awardCredits(user.id, amount, CASHABLE_CREDIT_TYPE, `payout_staging_rollback:${payoutId as string}`)
+      return Response.json({ error: 'Payout request failed, please try again' }, { status: 500 })
     }
 
     // Step 7 — Return success

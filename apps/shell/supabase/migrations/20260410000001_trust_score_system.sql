@@ -67,7 +67,7 @@ ALTER TABLE payouts ADD COLUMN IF NOT EXISTS staged_until timestamptz;
 -- Update the payouts status CHECK constraint to include STAGED.
 ALTER TABLE payouts DROP CONSTRAINT IF EXISTS payouts_status_check;
 ALTER TABLE payouts ADD CONSTRAINT payouts_status_check
-  CHECK (status IN ('STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING', 'COMPLETED', 'FAILED', 'REJECTED'));
+  CHECK (status IN ('STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING', 'COMPLETED', 'FAILED', 'REJECTED', 'CANCELLED'));
 
 -- Update partial unique index to include STAGED — prevents concurrent payout double-spend.
 DROP INDEX IF EXISTS idx_payouts_one_pending_per_user;

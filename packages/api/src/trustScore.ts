@@ -10,8 +10,9 @@ interface TierConfig {
 
 /**
  * Pure function. Returns the tier for a given score using config thresholds.
+ * Internal reference only — tier computation is authoritative in the adjust_trust_score RPC.
  */
-export function computeTier(score: number, config: TierConfig): TrustTier {
+function computeTier(score: number, config: TierConfig): TrustTier {
   if (score <= config.trust_tier_probation_max) return 'PROBATION'
   if (score <= config.trust_tier_standard_max) return 'STANDARD'
   if (score <= config.trust_tier_trusted_max) return 'TRUSTED'
@@ -37,7 +38,9 @@ export async function adjustTrustScore(
   })
 
   if (error) {
-    throw new Error(`adjust_trust_score failed for user ${userId}: ${error.message}`)
+    const err = new Error(`adjust_trust_score failed for user ${userId}: ${error.message}`)
+    ;(err as Error & { code?: string }).code = error.code
+    throw err
   }
 
   const result = data as {
