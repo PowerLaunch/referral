@@ -10,69 +10,37 @@ export interface IpClassificationResult {
   ipRange24: string
 }
 
-// Datacenter /8 ranges (first octet match)
-const DATACENTER_SLASH_8: Array<{ firstOctet: number; provider: string }> = [
-  // AWS
-  { firstOctet: 3, provider: 'AWS' },
-  { firstOctet: 13, provider: 'AWS' },
-  { firstOctet: 15, provider: 'AWS' },
-  { firstOctet: 18, provider: 'AWS' },
-  { firstOctet: 54, provider: 'AWS' },
+// MVP: /16 precision. MaxMind GeoIP2 deferred to 500+ users.
+// Each range checks first two octets: start[0].start[1] through end[0].end[1]
+const DATACENTER_RANGES: Array<{ start: [number, number]; end: [number, number]; provider: string }> = [
+  // AWS (3.x.x.x is entirely AWS)
+  { start: [3, 0], end: [3, 255], provider: 'AWS' },
+  { start: [52, 0], end: [52, 95], provider: 'AWS' },
   // GCP
-  { firstOctet: 34, provider: 'GCP' },
-  { firstOctet: 35, provider: 'GCP' },
+  { start: [34, 64], end: [34, 127], provider: 'GCP' },
+  { start: [35, 190], end: [35, 235], provider: 'GCP' },
   // Azure
-  { firstOctet: 20, provider: 'Azure' },
-  { firstOctet: 40, provider: 'Azure' },
-  // AWS + Azure overlap on 52
-  { firstOctet: 52, provider: 'AWS/Azure' },
-]
-
-// Datacenter /16 ranges (first two octets match)
-const DATACENTER_SLASH_16: Array<{ firstOctet: number; secondOctet: number; provider: string }> = [
+  { start: [13, 64], end: [13, 107], provider: 'Azure' },
+  { start: [20, 33], end: [20, 128], provider: 'Azure' },
+  { start: [40, 74], end: [40, 125], provider: 'Azure' },
+  { start: [52, 96], end: [52, 255], provider: 'Azure' },
   // DigitalOcean
-  { firstOctet: 104, secondOctet: 131, provider: 'DigitalOcean' },
-  { firstOctet: 138, secondOctet: 68, provider: 'DigitalOcean' },
-  { firstOctet: 139, secondOctet: 59, provider: 'DigitalOcean' },
-  { firstOctet: 142, secondOctet: 93, provider: 'DigitalOcean' },
-  { firstOctet: 157, secondOctet: 245, provider: 'DigitalOcean' },
-  { firstOctet: 164, secondOctet: 90, provider: 'DigitalOcean' },
-  { firstOctet: 167, secondOctet: 71, provider: 'DigitalOcean' },
-  { firstOctet: 167, secondOctet: 172, provider: 'DigitalOcean' },
+  { start: [64, 225], end: [64, 227], provider: 'DigitalOcean' },
+  { start: [134, 122], end: [134, 122], provider: 'DigitalOcean' },
+  { start: [157, 230], end: [157, 230], provider: 'DigitalOcean' },
+  { start: [159, 65], end: [159, 65], provider: 'DigitalOcean' },
+  { start: [165, 22], end: [165, 22], provider: 'DigitalOcean' },
+  { start: [167, 71], end: [167, 71], provider: 'DigitalOcean' },
   // OVH
-  { firstOctet: 51, secondOctet: 38, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 68, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 75, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 77, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 79, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 81, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 83, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 89, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 91, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 161, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 178, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 195, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 210, provider: 'OVH' },
-  { firstOctet: 51, secondOctet: 222, provider: 'OVH' },
-  { firstOctet: 54, secondOctet: 37, provider: 'OVH' },
-  { firstOctet: 54, secondOctet: 38, provider: 'OVH' },
+  { start: [51, 68], end: [51, 91], provider: 'OVH' },
+  { start: [54, 36], end: [54, 39], provider: 'OVH' },
   // Linode/Akamai
-  { firstOctet: 45, secondOctet: 33, provider: 'Linode' },
-  { firstOctet: 45, secondOctet: 56, provider: 'Linode' },
-  { firstOctet: 45, secondOctet: 79, provider: 'Linode' },
-  { firstOctet: 50, secondOctet: 116, provider: 'Linode' },
-  { firstOctet: 66, secondOctet: 175, provider: 'Linode' },
-  { firstOctet: 69, secondOctet: 164, provider: 'Linode' },
-  { firstOctet: 72, secondOctet: 14, provider: 'Linode' },
-  { firstOctet: 74, secondOctet: 207, provider: 'Linode' },
-  { firstOctet: 96, secondOctet: 126, provider: 'Linode' },
-  { firstOctet: 97, secondOctet: 107, provider: 'Linode' },
-  { firstOctet: 172, secondOctet: 104, provider: 'Linode' },
-  { firstOctet: 172, secondOctet: 105, provider: 'Linode' },
-  { firstOctet: 173, secondOctet: 255, provider: 'Linode' },
-  { firstOctet: 192, secondOctet: 155, provider: 'Linode' },
-  { firstOctet: 198, secondOctet: 58, provider: 'Linode' },
-  { firstOctet: 198, secondOctet: 74, provider: 'Linode' },
+  { start: [45, 33], end: [45, 33], provider: 'Linode' },
+  { start: [45, 56], end: [45, 56], provider: 'Linode' },
+  { start: [45, 79], end: [45, 79], provider: 'Linode' },
+  { start: [139, 162], end: [139, 162], provider: 'Linode' },
+  { start: [172, 104], end: [172, 104], provider: 'Linode' },
+  { start: [176, 58], end: [176, 58], provider: 'Linode' },
 ]
 
 /**
@@ -116,16 +84,14 @@ export function classifyIp(ip: string): IpClassificationResult {
     return { classification: 'UNKNOWN', providerName: null, ipRange24 }
   }
 
-  // Check /16 ranges first (more specific)
-  for (const range of DATACENTER_SLASH_16) {
-    if (octets[0] === range.firstOctet && octets[1] === range.secondOctet) {
-      return { classification: 'DATACENTER', providerName: range.provider, ipRange24 }
-    }
-  }
-
-  // Check /8 ranges
-  for (const range of DATACENTER_SLASH_8) {
-    if (octets[0] === range.firstOctet) {
+  // Check datacenter ranges by first two octets
+  for (const range of DATACENTER_RANGES) {
+    if (
+      octets[0] === range.start[0] &&
+      octets[1] >= range.start[1] &&
+      octets[0] === range.end[0] &&
+      octets[1] <= range.end[1]
+    ) {
       return { classification: 'DATACENTER', providerName: range.provider, ipRange24 }
     }
   }

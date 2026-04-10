@@ -62,7 +62,18 @@ export async function GET(request: Request) {
         const ipResult = await recordAndClassifyIp(adminClient, user.id, ip, 'SIGNUP')
 
         if (ipResult.classification === 'DATACENTER' && !isVip) {
-          await adjustTrustScore(adminClient, user.id, -50, 'datacenter_ip_signup', 'R19_DATACENTER_IP')
+          // Idempotency: partial unique index on trust_score_events prevents duplicate penalties
+          const { data: existingPenalty } = await adminClient
+            .from('trust_score_events')
+            .select('id')
+            .eq('profile_id', user.id)
+            .eq('reason', 'datacenter_ip_signup')
+            .limit(1)
+            .maybeSingle()
+
+          if (!existingPenalty) {
+            await adjustTrustScore(adminClient, user.id, -50, 'datacenter_ip_signup', 'R19_DATACENTER_IP')
+          }
         }
         // TODO [Phase 5+]: Add VPN_PROXY trust penalty once MaxMind GeoIP2 is integrated
       } catch (ipErr) {

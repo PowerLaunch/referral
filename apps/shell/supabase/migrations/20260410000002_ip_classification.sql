@@ -25,3 +25,7 @@ ALTER TABLE ip_classifications ADD CONSTRAINT ip_class_valid
   CHECK (classification IN ('RESIDENTIAL', 'MOBILE', 'DATACENTER', 'VPN_PROXY', 'UNKNOWN'));
 ALTER TABLE ip_classifications ADD CONSTRAINT ip_class_context_valid
   CHECK (context IN ('SIGNUP', 'SESSION'));
+
+-- Idempotency guard: datacenter IP trust penalty can only be applied once per user
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trust_score_events_datacenter_ip_signup
+  ON trust_score_events (profile_id) WHERE reason = 'datacenter_ip_signup';
