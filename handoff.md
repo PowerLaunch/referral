@@ -1,126 +1,129 @@
-# HANDOFF — April 9, 2026 (Session 2 complete)
+# HANDOFF — April 10, 2026 (Session 3 complete)
 
-## IMMEDIATE ACTION ITEMS (in order)
+## IMMEDIATE ACTION ITEM
 
-### 1. Add "branch off main" rule
-Write a Cursor command to add this rule to both `.cursorrules` and `CLAUDE.md`:
-"All new branches must be based off main. Never branch from feat/scaffold or any other feature branch."
+### 1. Write and run PR E — E2E Test Setup (8-C)
+This is the ONLY remaining PR. Claude writes the full Cursor command, Tony pastes it into Cursor.
 
-### 2. Run security TODOs command
-There's a ready-to-go command for `chore/security-todos` that adds TODO comments for 12 security measures. It's independent and touches different files. Run it based off main.
+| PR | Branch | Contains | Spec sections |
+|----|--------|----------|---------------|
+| PR E | feat/e2e-test-setup | 8-C (E2E test scripts) | Phase 8 testing |
 
-### 3. Write and run Round 2 Cursor commands (PR B + PR D)
-See the ROUND 2 PLAN section below. Claude should write the full Cursor commands for both PRs at the start of the next session, then Tony pastes them into two Cursor windows in parallel.
+**8-C scope:**
+- Create PHASE8_TESTING.md in repo root with step-by-step manual test procedures
+- TEST 1: Full referral journey (signup → refer → subscribe → gameplay → cron → confirm → payout)
+- TEST 2: Maturity checkpoint (cancel mid-lock → freeze → resubscribe → resume → verify math)
+- TEST 3: R7 Sybil detection (two accounts, same KYC hash → REVIEW_HOLD + CRITICAL flag)
+- TEST 4: Payout failure handling (trigger payout → simulate failure → verify credit-back + E4 email + cooldown)
+- TEST 5: Real $1 transaction (full flow through Transak/MoonPay in production)
+- Each test includes: expected result, pass/fail criteria, what to check in admin dashboard
 
 ---
 
-## COMPLETED THIS SESSION (Session 2)
+## COMPLETED THIS SESSION (Session 3)
 
-| PR# | Branch | What | Status |
-|-----|--------|------|--------|
-| #21 | fix/session-diversity → main | Session diversity (min 3 sessions for referral confirmation) | ✅ MERGED |
-| #24 | feat/scaffold → main | Sync feat/scaffold into main (admin dashboard code) | ✅ MERGED (6 BugBot rounds) |
-| #25 | feat/admin-users → main | User management (7-C) + Disputes tab (7-H) | ✅ MERGED (10 BugBot rounds) |
-| #26 | feat/admin-influencers → main | Influencer management (7-G) | ✅ MERGED (6 BugBot rounds) |
+| GitHub PR# | Scope ref | Branch | What | Status |
+|------------|-----------|--------|------|--------|
+| #27 | chore | chore/security-todos → main | TODO reminders for 12 security measures (5-A, 5-B, post-Phase-5) | ✅ MERGED |
+| #28 | chore | chore/branch-rule → main | Enforced "branch off main" rule in .cursorrules and CLAUDE.md | ✅ MERGED |
+| #29 | 7-D + 7-E | feat/admin-cashouts-fraud → main | Cashout review + fraud management (9 BugBot fix rounds) | ✅ MERGED |
+| #30 | 8-A + 8-B | feat/hardening → main | Security audit + cron hardening (5 BugBot fix rounds) | ✅ MERGED |
 
 ### Migrations run this session:
-1. `20260408000003_session_diversity.sql` ✅
-2. `20260408000004_admin_foundation.sql` ✅
-3. `UPDATE profiles SET is_admin = true WHERE email = '...'` ✅
-4. `20260409000001_admin_users_disputes.sql` (ALTER TABLE profiles ADD COLUMN is_vip) ✅
-5. `20260409000002_influencer_codes.sql` (influencer_codes table + referrals.influencer_code_id FK) ✅
+1. `20260409000003_cashouts_fraud.sql` — ALTER TABLE payouts ADD COLUMN admin_notes text + REJECTED status in CHECK constraint ✅
 
-### Key BugBot patterns caught and fixed:
-- TOCTOU race conditions on dispute resolution → atomic `.neq('status', 'RESOLVED')` guards
-- N+1 DB queries in cron → join queries with `!inner`
-- Missing state guards on server actions (e.g. unflagSuspicious could downgrade BANNED → SUSPICIOUS)
-- NaN bypassing numeric validation → `Number.isFinite()` + `Number.isInteger()` checks
-- Triplicated utility functions → shared imports
-- Unvalidated UUID path params in PostgREST `.or()` → regex validation
-- Partial failure handling → audit log before returning error
-- requireAdmin() must always be first call in server actions (before input validation)
-
----
-
-## OVERALL PROJECT STATUS
-
-### Completed Phases:
-- Phase 1 (Foundation) ✅
-- Phase 2 (Referral Engine) ✅
-- Phase 3 (Credit System) ✅
-- Phase 4 (Fraud Engine) ✅
-- Phase 6 (User Dashboard) ✅ — PR #20
-- Phase 7: 7-A ✅, 7-B ✅, 7-C ✅, 7-G ✅, 7-H ✅, 7-I ✅ — PRs #22, #25, #26
-
-### Blocked:
-- Phase 5 (Payments & KYC) — blocked by provider paperwork (Transak/Triple-A not contacted)
-
-### Skipped:
-- 7-F (KYC management) — depends on Phase 5
-
-### 26 PRs merged to main. No open PRs.
+### Key BugBot patterns caught and fixed this session:
+- executePayout must use .select() after .update() to detect zero-row updates (concurrent modification)
+- Status reverts on failure need atomic .eq('status', 'PROCESSING') guard to avoid overwriting concurrent rejections
+- executePayout exceptions (not just { ok: false }) must also trigger status revert
+- Batch approve must skip (not approve) when risk score DB query fails (fail-closed for money-out)
+- Batch approve result must surface errors array to admin UI, not just counts
+- Shared constants (REJECTION_REASONS) must be exported from one place, not duplicated
+- CSP headers must include regional Sentry ingest domains (*.ingest.us.sentry.io, *.ingest.de.sentry.io)
+- Per-cron heartbeat URLs needed (single URL masks individual cron failures)
+- Fraud scan partial failures should still record heartbeat (cron ran, rules failed individually)
+- Cron outer catch blocks need console.error alongside Sentry.captureException (DSN may be unset)
+- riskColor display threshold must match batch approve threshold (both >= 30 = yellow/rejected)
+- Successful payout retry must clear stale provider_error_code
 
 ---
 
-## ROUND 2 PLAN — Next session (parallel)
+## ALL MERGED PRs (complete history)
 
-Tony runs two Cursor windows in parallel. Claude writes both mega-commands at the start of the session.
+| GitHub PR# | Scope ref | Branch | What |
+|------------|-----------|--------|------|
+| #1 | 1-A | feat/project-setup | Monorepo, Next.js, Tailwind, Supabase client |
+| #2 | 1-B | feat/database-schema | Phase 1 tables + RLS |
+| #5 | 1-C | feat/auth | Supabase Auth, signup, login, middleware |
+| #6 | 1-D | feat/referral-code-gen | 8-char code gen, self-referral prevention |
+| #7 | 2-A | feat/referral-tracking | Click tracking, referrals table, code capture |
+| #8 | 2-B+2-C | feat/shell-app + email | Shell app, heartbeat, email templates |
+| #9 | 2-D | feat/lock-periods | Lock period calc, signup bonus, VPN stub |
+| #10 | 3-A | feat/credit-system | Canonical credit ledger (awardCredits/deductCredits) |
+| #11 | 3-B | feat/referral-confirmation | Daily cron, confirmation criteria, audit logs |
+| #12 | 3-B-patch | feat/referral-confirmation-patch | Payment collateralization + credit voiding |
+| #13 | 3-C | feat/maturity-checkpoint | Freeze/unfreeze RPCs, referral audit logs |
+| #14 | 3-D | feat/payout-workflow | Payout request, failure handler, recurring cron |
+| #15 | 4-A | feat/risk-scoring | Risk score, fraud tables, fingerprint capture |
+| — | chore | chore/vercel-build-fixes | ESLint, Suspense, optional deps for Vercel |
+| #16 | 4-B+4-C | feat/fraud-rules-r1-r7 | All 7 fraud rules, KYC hashing, shadow review |
+| #17 | 4-D | feat/fraud-middleware | Device re-auth, chargeback handler, fraud→cron wiring |
+| #18 | chore | chore/claude-code-config | CLAUDE.md + .cursorrules update |
+| #19 | patch | fix/referral-honeymoon | 14-day cooldown after first referral |
+| #20 | 6-A–6-E | feat/user-dashboard | Full user dashboard (combined 6-A through 6-E) |
+| #21 | patch | fix/session-diversity | Min 3 gameplay sessions for referral confirmation |
+| #22 | 7-A+7-B+7-I | feat/admin-foundation | Admin auth, pulse page, config editor, seed users, audit log, kill switches |
+| #23 | — | (closed) | Mistaken PR direction — closed immediately |
+| #24 | chore | feat/scaffold → main | Sync feat/scaffold into main |
+| #25 | 7-C+7-H | feat/admin-users | User management + disputes tab |
+| #26 | 7-G | feat/admin-influencers | Influencer management |
+| #27 | chore | chore/security-todos | TODO reminders for 12 security measures |
+| #28 | chore | chore/branch-rule | Branch-off-main rule enforcement |
+| #29 | 7-D+7-E | feat/admin-cashouts-fraud | Cashout review + fraud management |
+| #30 | 8-A+8-B | feat/hardening | Security audit + cron hardening |
 
-| Window | PR | Branch | Contains | Spec sections |
-|--------|----|--------|----------|---------------|
-| 1 | **PR B** | feat/admin-cashouts-fraud | 7-D (cashout review) + 7-E (fraud management) | Sections 5.3, 5.4, 6.5, 6.6 |
-| 2 | **PR D** | feat/hardening | 8-A (security audit) + 8-B (cron hardening) | Phase 8 hardening |
+**Total: 30 PRs merged. 0 open. 1 remaining (PR E: 8-C).**
 
-### PR B — Cashout Review + Fraud Management (7-D + 7-E)
-**Why combined:** Both share fraud/risk score display patterns and depend on the user management table from PR #25.
+---
 
-**7-D scope (cashout review):**
-- Cashout review page at app/admin/cashouts/page.tsx
-- Tabs: Pending Review | Delayed | Approved | Completed | Rejected | Failed
-- Per payout row: user email, amount, method, risk score (color coded), FIRST PAYOUT badge, created_at, retry count
-- Actions: Approve (calls executePayout — stub for now, Phase 5 dependency), Reject with reason dropdown (Fraud Suspected / Wrong Details / Policy Violation / Other) + optional notes + credit return via awardCredits(), Batch approve for low-risk (score < 30) under $25
-- Failed payouts tab: provider error code, retry count, retry_available_at, manual retry button
-- All actions logged to admin_audit_logs
+## PHASE COMPLETION STATUS
 
-**7-E scope (fraud management):**
-- Fraud flags feed at app/admin/fraud/page.tsx with severity color coding (red=CRITICAL, orange=WARNING, blue=INFO), filter by severity and rule type
-- Device fingerprint cluster view: group by fingerprint_hash where user count > 1, show truncated hash + user IDs + flag count
-- Sybil cluster view: group by verified_kyc_hash where count > 1, show user IDs only (NO emails — spec Section 5.4)
-- Circuit breaker controls: pause cashouts + pause referral confirmations toggles (RPCs already exist from PR #24)
-- Webhook log viewer: last 50 payment_events
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 1 (Foundation) | ✅ Complete | PRs #1–#6 |
+| Phase 2 (Referral Engine) | ✅ Complete | PRs #7–#9 |
+| Phase 3 (Credit System) | ✅ Complete | PRs #10–#14 |
+| Phase 4 (Fraud Engine) | ✅ Complete | PRs #15–#17 |
+| Phase 5 (Payments & KYC) | ❌ BLOCKED | Provider paperwork not started (Transak/Triple-A) |
+| Phase 6 (User Dashboard) | ✅ Complete | PR #20 |
+| Phase 7 (Admin Dashboard) | ✅ Complete (except 7-F) | 7-A✅ 7-B✅ 7-C✅ 7-D✅ 7-E✅ 7-F❌blocked 7-G✅ 7-H✅ 7-I✅ |
+| Phase 8 (Hardening) | 🔶 In progress | 8-A✅ 8-B✅ 8-C remaining |
 
-### PR D — Security Audit + Cron Hardening (8-A + 8-B)
-**Why combined:** Both are small non-UI hardening tasks, independent of Phase 7.
+**7-F (KYC management) skipped — depends on Phase 5 provider paperwork.**
 
-**8-A scope (security audit):**
-- RLS verification across all tables
-- Verify service role key never exposed on client side
-- Verify no API routes without auth
-- Webhook signature validation stubs
-- CSP headers
+---
 
-**8-B scope (cron hardening):**
-- All cron endpoints protected with Authorization: Bearer {CRON_SECRET}
-- BetterStack monitoring setup (stubs/config)
-- Sentry error monitoring setup (stubs/config)
-- Cron schedule verification in vercel.json
+## WHAT REMAINS AFTER PR E
 
-### After Round 2 — Round 3 (solo):
-| PR | Branch | Contains |
-|----|--------|----------|
-| **PR E** | feat/e2e-test-setup | 8-C (E2E test scripts) — depends on PR D |
+Once PR E (8-C) merges, all buildable phases are complete. The project is then blocked on:
+
+1. **Phase 0 paperwork:** Contact Transak, MoonPay, Triple-A, XanPool. Get chargeback liability confirmation and off-ramp business verification.
+2. **Phase 5 (Payments & KYC):** PRs 5-A through 5-D. Cannot start until Phase 0 completes.
+3. **7-F (KYC management admin):** Depends on Phase 5.
+4. **Game development:** Current shell game is a placeholder. Daily puzzle suite (NYT Games model) is planned but not yet designed.
+5. **Phase 8 dry-run week:** Manual admin-supervised testing with real $1 transactions. Requires Phase 5.
 
 ---
 
 ## WORKFLOW RULES
 
-- **Cursor commands:** start with `Read .cursorrules first. This is a code change task only — do not investigate.`, end with commit/push instruction
+- **Cursor commands:** start with `Read .cursorrules first. This is a code change task only — do not investigate.`, end with commit/push instruction. Always include `Create branch [name] from main.`
 - **BugBot debugging:** Tony pastes BugBot review from GitHub PR page + whether there are merge conflicts. That's all Claude needs.
 - **All BugBot issues (High/Medium/Low) must be resolved before merging**
-- **Migrations:** Run manually in Supabase SQL editor after merging. Always paste the full SQL contents directly — never refer to a document or file path unless it's a file in the repo's migrations folder.
-- **Label every fix command with the PR number** so Tony knows which PR the feedback is for
-- **Two PRs in parallel:** paste first command → Cursor codes → push → BugBot starts → paste second command → push → BugBot starts → debug both as results come in
-- **All new branches MUST be based off main**
+- **Migrations:** Run manually in Supabase SQL editor after merging. Always paste the full SQL directly — never refer to a file path.
+- **All new branches MUST be based off main** (enforced in .cursorrules and CLAUDE.md)
+- **Before any merge advice:** Claude must verify the PR's base branch. If it targets feat/scaffold, retarget to main first (pencil icon → Edit title → change base).
+- **Before giving status updates:** Claude must check past conversations or ask Tony, not assume.
 
 ---
 
@@ -135,26 +138,13 @@ Tony runs two Cursor windows in parallel. Claude writes both mega-commands at th
 - Game never imports from packages/api — API routes only
 - All dates explicit UTC
 - Never use `::date` cast — use `CAST(timezone('UTC', x) AS date)`
-- All new branches based off main (NOT feat/scaffold)
+- All new branches based off main
 - Package name: `@referral/api`
-- requireAdmin() must be the FIRST call in every admin server action (before input validation)
-- Use atomic DB-level guards (e.g. `.neq('status', 'RESOLVED')`) for state transitions — don't rely on JS-level checks alone
-- Validate UUID format on all path params before interpolating into PostgREST `.or()` filters
-- Always guard NaN with `Number.isFinite()` before numeric range checks
-
----
-
-## KEY BUGBOT LESSONS (apply to all future commands)
-
-These patterns were caught repeatedly in this session. Include them in Cursor commands to avoid repeat BugBot rounds:
-
-1. **requireAdmin() first:** Always the first line in server actions, before any input validation
-2. **Atomic state guards:** Use `.neq('status', 'RESOLVED')` in UPDATE queries, check row count after — never rely on a separate SELECT then UPDATE
-3. **NaN validation:** `typeof x !== 'number' || !Number.isFinite(x)` before range checks
-4. **Integer validation:** `!Number.isInteger(x)` for credit amounts
-5. **State transition guards:** Every action that changes trust_level must check current value first (e.g. can't flag BANNED as SUSPICIOUS)
-6. **Partial failure handling:** If operation A succeeds but operation B fails, write an audit log entry before returning error
-7. **No N+1 queries in crons:** Use joins with `!inner` to filter at DB level
-8. **Deduplicate utilities:** Extract shared functions (riskColor, requireAdmin, risk score calc) into shared files
-9. **UUID validation:** Regex check path params before interpolating into `.or()` filters
-10. **Shared timestamps:** Capture `new Date().toISOString()` once and reuse across related queries
+- requireAdmin() must be the FIRST call in every admin server action
+- Use atomic DB-level guards for state transitions
+- Validate UUID format on path params before interpolating into PostgREST `.or()` filters
+- Guard NaN with `Number.isFinite()` before numeric range checks
+- executePayout must use .select() after .update() to detect zero-row updates
+- Status reverts need atomic .eq('status', 'PROCESSING') guard
+- Batch money-out operations: fail-closed on DB errors (skip, don't approve)
+- Per-cron BetterStack heartbeat URLs (not one shared URL)
