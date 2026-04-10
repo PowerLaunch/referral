@@ -26,6 +26,4 @@ INSERT INTO source_blocklist (domain, added_by, notes) VALUES
   ('rapidworkers.com', NULL, 'Micro-task platform'),
   ('clickworker.com', NULL, 'Micro-task platform'),
   ('beermoney.ph', NULL, 'PH beermoney forum'),
-  ('beermoneyforum.com', NULL, 'Beermoney forum'),
-  ('old.reddit.com', NULL, 'Reddit (old)'),
-  ('reddit.com', NULL, 'Reddit');
+  ('beermoneyforum.com', NULL, 'Beermoney forum');
