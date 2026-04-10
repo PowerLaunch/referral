@@ -13,8 +13,6 @@ export const REJECTION_REASONS = [
   'Other',
 ] as const
 
-type RejectionReason = (typeof REJECTION_REASONS)[number]
-
 export async function approvePayout(
   payoutId: string
 ): Promise<{ ok: boolean; error?: string }> {
@@ -231,7 +229,7 @@ export async function batchApproveLowRisk(
         return sum + severityPoints(f.severity)
       }, 0)
 
-      if (riskScore >= 30) {
+      if (riskScore > 30) {
         errors.push(`${payoutId}: risk score too high (${riskScore})`)
         skipped++
         continue
