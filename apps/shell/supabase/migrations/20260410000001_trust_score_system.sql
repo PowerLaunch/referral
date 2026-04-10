@@ -107,6 +107,10 @@ BEGIN
   INTO v_probation_max, v_standard_max, v_trusted_max
   FROM public.game_config WHERE singleton = true;
 
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'game_config row not found — cannot compute trust tier';
+  END IF;
+
   -- Compute new tier
   IF v_score_after <= v_probation_max THEN
     v_tier_after := 'PROBATION';

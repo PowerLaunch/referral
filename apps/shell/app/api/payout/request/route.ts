@@ -356,11 +356,17 @@ export async function POST(request: Request): Promise<Response> {
       }
     } catch (stagingErr) {
       console.error('Staging failed, cancelling payout and refunding credits:', stagingErr)
-      await adminClient
+      const { error: cancelError } = await adminClient
         .from('payouts')
         .update({ status: 'CANCELLED' })
         .eq('id', payoutId as string)
-      await awardCredits(user.id, amount, CASHABLE_CREDIT_TYPE, `payout_staging_rollback:${payoutId as string}`)
+
+      if (!cancelError) {
+        await awardCredits(user.id, amount, CASHABLE_CREDIT_TYPE, `payout_staging_rollback:${payoutId as string}`)
+      } else {
+        console.error('CRITICAL: Failed to cancel payout during staging rollback:', cancelError, 'payoutId:', payoutId)
+        // Do NOT refund — payout row is still active. Admin must investigate.
+      }
       return Response.json({ error: 'Payout request failed, please try again' }, { status: 500 })
     }
 
