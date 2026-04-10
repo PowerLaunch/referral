@@ -346,13 +346,22 @@ export async function POST(request: Request): Promise<Response> {
       const stagingHours = await getPayoutStagingHours(adminClient, user.id)
       stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
 
-      const { error: stageError } = await adminClient
+      const { data: stagedRows, error: stageError } = await adminClient
         .from('payouts')
         .update({ status: 'STAGED', staged_until: stagedUntil })
         .eq('id', payoutId as string)
+        .eq('status', 'PENDING')
+        .select('id')
 
       if (stageError) {
         throw stageError
+      }
+
+      if (!stagedRows || stagedRows.length === 0) {
+        return Response.json(
+          { error: 'Payout is no longer in PENDING status' },
+          { status: 409 }
+        )
       }
     } catch (stagingErr) {
       console.error('Staging failed, cancelling payout and refunding credits:', stagingErr)
