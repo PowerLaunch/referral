@@ -35,7 +35,7 @@ export async function GET(
     secure: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 600, // 10 minutes — long enough to complete signup
+    maxAge: 3600, // 1 hour — must outlast email verification flow
   })
 
   return response

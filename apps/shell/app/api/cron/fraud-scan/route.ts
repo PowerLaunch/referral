@@ -16,6 +16,7 @@ import { recordCronSuccess } from '@referral/api/cronHealth'
 import { awardCredits } from '@referral/api/credits'
 import { logAdminAction } from '@referral/api/riskScore'
 import { adjustTrustScore } from '@referral/api/trustScore'
+import { extractDomain } from '@referral/api/sourceClassification'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -165,7 +166,8 @@ export async function GET(request: NextRequest): Promise<Response> {
       const entry = referrerMap.get(referrerId)!
       entry.count++
       if (row.referral_source) {
-        entry.domains.add(row.referral_source as string)
+        const domain = extractDomain(row.referral_source as string)
+        if (domain) entry.domains.add(domain)
       }
     }
 
