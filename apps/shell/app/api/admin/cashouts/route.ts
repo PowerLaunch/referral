@@ -16,6 +16,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const offset = (page - 1) * limit
 
   const VALID_STATUSES = [
+    'STAGED',
     'PENDING_MANUAL_APPROVAL',
     'PENDING',
     'PROCESSING',
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Fetch payouts with limit+1 for hasMore detection
   const { data: payouts, error: payoutsError } = await admin
     .from('payouts')
-    .select('id, user_id, amount, method, status, is_first_payout, provider_error_code, retry_count, retry_available_at, admin_notes, created_at')
+    .select('id, user_id, amount, method, status, is_first_payout, staged_until, provider_error_code, retry_count, retry_available_at, admin_notes, created_at')
     .eq('status', status)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit)

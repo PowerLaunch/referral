@@ -13,6 +13,8 @@ import {
   runGeoMismatch,
 } from '@referral/api/fraudRules'
 import { recordCronSuccess } from '@referral/api/cronHealth'
+import { awardCredits } from '@referral/api/credits'
+import { logAdminAction } from '@referral/api/riskScore'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -136,15 +138,127 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
   }
 
-  await recordCronSuccess('fraud-scan', createAdminClient(), process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)
+  // Step 3 — Promote STAGED payouts whose staging window has expired
+  // Runs here (every 15 min) instead of monthly recurring-payouts cron so
+  // VETERAN payouts (1-hour staging) are promoted promptly.
+  const adminClient = createAdminClient()
+  let stagedPromoted = 0
+  let stagedCancelled = 0
 
-  // Step 3 — Return summary
+  try {
+    const { data: stagedPayouts, error: stagedError } = await adminClient
+      .from('payouts')
+      .select('id, user_id, amount, is_first_payout, created_at')
+      .eq('status', 'STAGED')
+      .lte('staged_until', new Date().toISOString())
+      .limit(10000)
+
+    if (stagedError) {
+      console.error('Failed to fetch staged payouts:', stagedError.message)
+    }
+
+    for (const payout of stagedPayouts ?? []) {
+      try {
+        // Check if user has any NEW fraud_flags created after the payout was created
+        const { data: newFlags, error: flagsError } = await adminClient
+          .from('fraud_flags')
+          .select('id, severity')
+          .eq('user_id', payout.user_id)
+          .gte('created_at', payout.created_at as string)
+          .in('severity', ['WARNING', 'CRITICAL'])
+          .limit(1)
+
+        if (flagsError) {
+          console.error(`Failed to check fraud flags for staged payout ${payout.id}:`, flagsError.message)
+          continue
+        }
+
+        if (newFlags && newFlags.length > 0) {
+          // New fraud flags detected — cancel payout and refund credits
+          // Use .select() to verify a row was actually updated (optimistic lock).
+          // If another concurrent cron already cancelled it, cancelledRows will be empty.
+          const { data: cancelledRows, error: cancelError } = await adminClient
+            .from('payouts')
+            .update({ status: 'REJECTED', admin_notes: 'Auto-cancelled: fraud flags detected during staging' })
+            .eq('id', payout.id)
+            .eq('status', 'STAGED')
+            .select('id')
+
+          if (cancelError) {
+            console.error(`Failed to cancel staged payout ${payout.id}:`, cancelError.message)
+            continue
+          }
+
+          if (!cancelledRows || cancelledRows.length === 0) {
+            console.log(`Payout ${payout.id} already cancelled by concurrent execution, skipping refund`)
+            continue
+          }
+
+          // Refund credits — only if we actually cancelled the payout above
+          try {
+            await awardCredits(
+              payout.user_id as string,
+              payout.amount as number,
+              'CASH_BALANCE',
+              `payout_auto_cancelled:${payout.id}`
+            )
+          } catch (creditErr) {
+            console.error(`Failed to refund credits for cancelled payout ${payout.id}:`, creditErr)
+          }
+
+          // Audit log
+          await logAdminAction({
+            adminUserId: null,
+            action: 'PAYOUT_AUTO_CANCELLED_FRAUD',
+            targetType: 'payout',
+            targetId: payout.id as string,
+            beforeValue: 'STAGED',
+            afterValue: 'REJECTED',
+            reason: 'Fraud flags detected during staging window',
+          })
+
+          stagedCancelled++
+        } else {
+          // No new fraud flags — promote to PENDING or PENDING_MANUAL_APPROVAL
+          const newStatus = payout.is_first_payout ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
+
+          const { error: promoteError } = await adminClient
+            .from('payouts')
+            .update({ status: newStatus })
+            .eq('id', payout.id)
+            .eq('status', 'STAGED')
+
+          if (promoteError) {
+            console.error(`Failed to promote staged payout ${payout.id}:`, promoteError.message)
+            continue
+          }
+
+          stagedPromoted++
+        }
+      } catch (err) {
+        console.error(`Error processing staged payout ${payout.id}:`, err)
+      }
+    }
+
+    if (stagedPromoted > 0 || stagedCancelled > 0) {
+      console.log(`Staged payouts: ${stagedPromoted} promoted, ${stagedCancelled} cancelled`)
+    }
+  } catch (err) {
+    console.error('Staged payout promotion error:', err)
+    Sentry.captureException(err)
+  }
+
+  await recordCronSuccess('fraud-scan', adminClient, process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)
+
+  // Step 4 — Return summary
   return Response.json({
     ok: true,
     scannedAt,
     results,
     totalFlagged,
     ruleFailures,
+    stagedPromoted,
+    stagedCancelled,
   })
  } catch (error) {
     console.error('Cron error:', error)

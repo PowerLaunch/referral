@@ -40,6 +40,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // internal credits, not cash outflows. The kill switch blocks actual payouts
   // in payout/request/route.ts.
 
+  const adminClient = getAdminClient()
 
   // Step 2 — Calculate reward month (the month that just ended)
   const now = new Date()
@@ -52,8 +53,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   const rewardMonth = `${priorMonth.getUTCFullYear()}-${String(priorMonth.getUTCMonth() + 1).padStart(2, '0')}`
   // e.g. cron runs 2026-04-01 → rewardMonth = '2026-03'
   // Date.UTC handles January correctly: month -1 wraps to December of prior year.
-
-  const adminClient = getAdminClient()
 
   // Step 3 — Find eligible referrals
   // Referral must be CONFIRMED, referee must have active subscription,

@@ -270,23 +270,80 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 
 ---
 
-## 8. Future Enhancements
+## 8. Trust Score System (Phase 10)
 
-### 8.1 Device Re-Auth (Phase 8)
+### 8.1 Score Range and Tiers
+- **Score range**: 0-1000 (default: 200 for new users)
+- **PROBATION** (0-199): Restricted access, maximum staging time
+- **STANDARD** (200-499): Default tier, normal operations
+- **TRUSTED** (500-799): Reduced lock periods, faster staging
+- **VETERAN** (800-1000): Minimum staging, maximum referral caps
+- Tier thresholds are admin-configurable via game_config
+
+### 8.2 Trust Score Adjustments
+- All fraud rules (R1-R7, R_GEO_MISMATCH) now adjust trust score on flag insertion:
+  - INFO flag: -30 points
+  - WARNING flag: -100 points
+  - CRITICAL flag: -300 points
+- Positive adjustments via monthly recalculation cron:
+  - +20 for continuous subscription during previous calendar month
+  - +10 for gameplay above 2x min_gameplay_minutes
+  - +25 per referred user with 3+ months continuous subscription (one-time per referral)
+- All adjustments are atomic via `adjust_trust_score` RPC function
+- Append-only `trust_score_events` ledger tracks all changes
+
+### 8.3 Payout Staging by Tier
+- Payouts enter STAGED status before entering the approval pipeline
+- Staging duration based on trust tier (admin-configurable):
+  - PROBATION: 240 hours (10 days)
+  - STANDARD: 72 hours (3 days)
+  - TRUSTED: 24 hours
+  - VETERAN: 1 hour
+- During staging, the fraud cron runs multiple times to detect issues
+- If new WARNING/CRITICAL fraud flags appear during staging, payout is auto-cancelled and credits refunded
+
+### 8.4 Dynamic Referral Caps by Tier
+- PROBATION: 2 referrals/month
+- STANDARD: 5 referrals/month
+- TRUSTED: 10 referrals/month
+- VETERAN: 20 referrals/month
+- VIP: 200 referrals/month (admin-configurable via game_config)
+
+### 8.5 Dynamic Lock Period Reduction
+- PROBATION/STANDARD: No reduction (base lock period)
+- TRUSTED: -7 days (minimum 14 days)
+- VETERAN: -14 days (minimum 14 days)
+- VIP accounts always get VETERAN-tier behavior
+
+### 8.6 VIP Exception
+- VIP users (is_vip = true) start at score 500 (TRUSTED tier)
+- VIP users always get VETERAN staging hours and referral cap
+- VIP status is set by admin or influencer codes
+
+### 8.7 Monthly Recalculation
+- Cron schedule: 1st of every month at 05:00 UTC
+- Processes active subscribers in batches of 100
+- Idempotent: partial unique index prevents duplicate longevity bonuses
+
+---
+
+## 9. Future Enhancements
+
+### 9.1 Device Re-Auth (Phase 8)
 - Force re-auth when R2 device cluster detected
 - profiles.force_reauth column (deferred from PR 4-D)
 - Requires user to re-login from same device
 
-### 8.2 KYC Integration (PR 5-C)
+### 9.2 KYC Integration (PR 5-C)
 - Real KYC vendor integration
 - verified_kyc_hash set on approval
 - R7 Sybil detection enforced at KYC approval
 
-### 8.3 Real Payment Provider HMAC (PR 5-A, 5-B)
+### 9.3 Real Payment Provider HMAC (PR 5-A, 5-B)
 - Replace stub HMAC validation with real provider-specific validation
 - Transak/MoonPay/Triple-A/XanPool webhook signatures
 
-### 8.4 Admin Dashboard (Phase 7)
+### 9.4 Admin Dashboard (Phase 7)
 - Fraud flag review queue
 - Payout approval/void interface
 - Circuit breaker toggles
@@ -298,12 +355,13 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 
 This platform implements defense-in-depth security:
 - **7 automated fraud rules** catching velocity, device clustering, Sybil attacks, disposables, zero-gameplay, cashout spikes, and geo-mismatches
+- **Graduated trust score system** (0-1000) with tier-based staging, caps, and lock period reduction
 - **Trust levels and status columns** enabling granular access control
 - **Payout guards** enforcing KYC, account age, subscription, and cooldown requirements
+- **Tier-based payout staging** with automatic cancellation on new fraud flags
 - **Referral freeze and void mechanisms** preventing credit award on fraudulent accounts
 - **Atomic credit operations** via RPC functions preventing race conditions
 - **Middleware fraud checks** enforcing trust_level/status on every request
-- **24-hour payout staging window** allowing fraud detection before execution
 - **Chargeback escalation** with automatic bans on repeat offenses
 - **Rate limiting on referral links** preventing bot flooding
 - **Comprehensive audit logging** tracking all security events

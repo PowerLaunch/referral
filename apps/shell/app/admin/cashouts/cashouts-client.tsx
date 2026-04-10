@@ -17,11 +17,13 @@ interface PayoutRow {
   provider_error_code: string | null
   retry_count: number
   retry_available_at: string | null
+  staged_until: string | null
   admin_notes: string | null
   created_at: string
 }
 
 const TABS = [
+  { key: 'STAGED', label: 'Staged' },
   { key: 'PENDING_MANUAL_APPROVAL', label: 'Pending Review' },
   { key: 'PENDING', label: 'Pending' },
   { key: 'PROCESSING', label: 'Processing' },
@@ -165,6 +167,7 @@ export default function CashoutsClient() {
 
   const showBatchButton = (activeTab === 'PENDING' || activeTab === 'PENDING_MANUAL_APPROVAL')
   const showActions = ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'].includes(activeTab)
+  const showStagedUntil = activeTab === 'STAGED'
 
   return (
     <div className="space-y-6">
@@ -277,6 +280,9 @@ export default function CashoutsClient() {
                 <th className="px-4 py-3 font-medium">Method</th>
                 <th className="px-4 py-3 font-medium">Risk</th>
                 <th className="px-4 py-3 font-medium">Created</th>
+                {showStagedUntil && (
+                  <th className="px-4 py-3 font-medium">Staged Until</th>
+                )}
                 {activeTab === 'FAILED' && (
                   <>
                     <th className="px-4 py-3 font-medium">Error</th>
@@ -330,6 +336,13 @@ export default function CashoutsClient() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' ')} UTC
                     </td>
+                    {showStagedUntil && (
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {p.staged_until
+                          ? new Date(p.staged_until).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
+                          : '-'}
+                      </td>
+                    )}
                     {activeTab === 'FAILED' && (
                       <>
                         <td className="px-4 py-3 text-red-600 text-xs">

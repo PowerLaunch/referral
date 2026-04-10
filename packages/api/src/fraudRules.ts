@@ -6,6 +6,14 @@
 import { getAdminClient } from './credits'
 import { logAdminAction } from './riskScore'
 import { voidPendingCredits } from './credits'
+import { adjustTrustScore } from './trustScore'
+
+// Trust score deltas by fraud flag severity
+const TRUST_SCORE_DELTAS: Record<'INFO' | 'WARNING' | 'CRITICAL', number> = {
+  INFO: -30,
+  WARNING: -100,
+  CRITICAL: -300,
+}
 
 /**
  * Internal helper: insert fraud flag with idempotency.
@@ -89,6 +97,13 @@ export async function runR1SpikeDetection(): Promise<number> {
         // Fire critical fraud hook
         await onCriticalFraudFlag(referrerId, 'R1_SPIKE_DETECTION')
 
+        // Adjust trust score for CRITICAL flag
+        try {
+          await adjustTrustScore(adminClient, referrerId, TRUST_SCORE_DELTAS.CRITICAL, 'fraud_flag_critical', 'R1_SPIKE_DETECTION')
+        } catch (err) {
+          console.error(`R1: Failed to adjust trust score for ${referrerId}:`, err)
+        }
+
         flaggedCount++
       }
     }
@@ -147,6 +162,14 @@ export async function runR2DeviceCluster(): Promise<number> {
 
         if (wasInserted) {
           await onCriticalFraudFlag(userId, 'R2_DEVICE_CLUSTER')
+
+          // Adjust trust score for CRITICAL flag
+          try {
+            await adjustTrustScore(adminClient, userId, TRUST_SCORE_DELTAS.CRITICAL, 'fraud_flag_critical', 'R2_DEVICE_CLUSTER')
+          } catch (err) {
+            console.error(`R2: Failed to adjust trust score for ${userId}:`, err)
+          }
+
           flaggedCount++
         }
       }
@@ -223,6 +246,13 @@ export async function runR3NewAccountVelocity(): Promise<number> {
               reason: 'R3: New account velocity (10+ referrals in 7 days)',
             })
           }
+        }
+
+        // Adjust trust score for WARNING flag
+        try {
+          await adjustTrustScore(adminClient, profile.id, TRUST_SCORE_DELTAS.WARNING, 'fraud_flag_warning', 'R3_NEW_ACCOUNT_VELOCITY')
+        } catch (err) {
+          console.error(`R3: Failed to adjust trust score for ${profile.id}:`, err)
         }
 
         flaggedCount++
@@ -418,6 +448,13 @@ export async function runR5ZeroGameplay(): Promise<number> {
       })
 
       if (wasInserted) {
+        // Adjust trust score for INFO flag
+        try {
+          await adjustTrustScore(adminClient, referral.referee_id, TRUST_SCORE_DELTAS.INFO, 'fraud_flag_info', 'R5_ZERO_GAMEPLAY')
+        } catch (err) {
+          console.error(`R5: Failed to adjust trust score for ${referral.referee_id}:`, err)
+        }
+
         flaggedCount++
       }
     }
@@ -520,6 +557,13 @@ export async function runR6DisposableEmail(): Promise<number> {
       })
 
       if (wasInserted) {
+        // Adjust trust score for WARNING flag
+        try {
+          await adjustTrustScore(adminClient, profile.id, TRUST_SCORE_DELTAS.WARNING, 'fraud_flag_warning', 'R6_DISPOSABLE_EMAIL')
+        } catch (err) {
+          console.error(`R6: Failed to adjust trust score for ${profile.id}:`, err)
+        }
+
         flaggedCount++
       }
     }
@@ -586,7 +630,16 @@ export async function runGeoMismatch(): Promise<number> {
         },
       })
 
-      if (wasInserted) flaggedCount++
+      if (wasInserted) {
+        // Adjust trust score for WARNING flag
+        try {
+          await adjustTrustScore(adminClient, referrerId, TRUST_SCORE_DELTAS.WARNING, 'fraud_flag_warning', 'R_GEO_MISMATCH')
+        } catch (err) {
+          console.error(`GeoMismatch: Failed to adjust trust score for ${referrerId}:`, err)
+        }
+
+        flaggedCount++
+      }
     }
   }
 
@@ -664,7 +717,7 @@ export async function checkIdentityCluster(
         .select('id')
 
       // c) Insert CRITICAL fraud_flag for this account
-      await insertFraudFlag({
+      const r7WasInserted = await insertFraudFlag({
         userId: targetUser.id,
         ruleTriggered: 'R7_IDENTITY_CLUSTER',
         severity: 'CRITICAL',
@@ -672,6 +725,15 @@ export async function checkIdentityCluster(
           conflicting_user_id: targetUser.id === userId ? conflictingUserId : userId,
         },
       })
+
+      // Adjust trust score for CRITICAL flag
+      if (r7WasInserted) {
+        try {
+          await adjustTrustScore(adminClient, targetUser.id, TRUST_SCORE_DELTAS.CRITICAL, 'fraud_flag_critical', 'R7_IDENTITY_CLUSTER')
+        } catch (err) {
+          console.error(`R7: Failed to adjust trust score for ${targetUser.id}:`, err)
+        }
+      }
 
       // d) Log to admin_audit_logs
       // Only audit-log if the update succeeded — BANNED accounts are skipped by the guard above.

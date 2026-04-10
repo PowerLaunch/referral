@@ -10,8 +10,9 @@
 import { createClient } from '@/lib/supabase/server'
 // Uses shared singleton from @referral/api — consistent with all
 // other server-side routes. Never import createAdminClient from apps directly.
-import { getAdminClient, getBalance, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
+import { getAdminClient, getBalance, awardCredits, CASHABLE_CREDIT_TYPE } from '@referral/api/credits'
 import { getDisplayPayoutStatus } from '@referral/api/statusDisplay'
+import { getPayoutStagingHours } from '@referral/api/trustScore'
 
 const ALLOWED_METHODS = [
   'gcash',
@@ -216,7 +217,7 @@ export async function POST(request: Request): Promise<Response> {
       .from('payouts')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .in('status', ['PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
+      .in('status', ['STAGED', 'PENDING', 'PENDING_MANUAL_APPROVAL', 'PROCESSING'])
 
     if (pendingError) {
       return Response.json({ error: 'Internal error' }, { status: 500 })
@@ -334,18 +335,48 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: 'Payout creation failed' }, { status: 500 })
     }
 
-    // NOTE: This payout is now PENDING or PENDING_MANUAL_APPROVAL.
-    // It will not be executed (funds sent) until:
-    // 1. 24-hour staging window passes (isPayoutStagingComplete check in PR 5-B)
-    // 2. Admin approves (if first payout)
-    // The 15-minute fraud cron runs multiple times in this window.
+    // Step 6 — Apply trust-tier-based staging window
+    // Payouts enter STAGED status with a staged_until timestamp based on user's trust tier.
+    // The recurring-payouts cron promotes STAGED → PENDING after staged_until expires
+    // (or PENDING_MANUAL_APPROVAL for first payouts).
+    // If staging fails (getPayoutStagingHours throws or STAGED update fails), cancel the
+    // payout and refund credits to avoid a payout stuck in PENDING bypassing staging.
+    let stagedUntil: string
+    try {
+      const stagingHours = await getPayoutStagingHours(adminClient, user.id)
+      stagedUntil = new Date(Date.now() + stagingHours * 60 * 60 * 1000).toISOString()
 
-    // Step 6 — Return success
-    const rawStatus = isFirst ? 'PENDING_MANUAL_APPROVAL' : 'PENDING'
+      const { error: stageError } = await adminClient
+        .from('payouts')
+        .update({ status: 'STAGED', staged_until: stagedUntil })
+        .eq('id', payoutId as string)
+
+      if (stageError) {
+        throw stageError
+      }
+    } catch (stagingErr) {
+      console.error('Staging failed, cancelling payout and refunding credits:', stagingErr)
+      const { error: cancelError } = await adminClient
+        .from('payouts')
+        .update({ status: 'CANCELLED' })
+        .eq('id', payoutId as string)
+
+      if (!cancelError) {
+        await awardCredits(user.id, amount, CASHABLE_CREDIT_TYPE, `payout_staging_rollback:${payoutId as string}`)
+      } else {
+        console.error('CRITICAL: Failed to cancel payout during staging rollback:', cancelError, 'payoutId:', payoutId)
+        // Do NOT refund — payout row is still active. Admin must investigate.
+      }
+      return Response.json({ error: 'Payout request failed, please try again' }, { status: 500 })
+    }
+
+    // Step 7 — Return success
+    // User-facing message does not mention "review" or "fraud"
     return Response.json({
       ok: true,
       payout_id: payoutId as string,
-      status: getDisplayPayoutStatus(rawStatus, profile.status as string),
+      status: getDisplayPayoutStatus('STAGED', profile.status as string),
+      estimated_completion: stagedUntil,
     })
   } catch (error) {
     console.error('Payout request error:', error)
