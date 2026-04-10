@@ -130,7 +130,7 @@ export function classifyIp(ip: string): IpClassificationResult {
     }
   }
 
-  // No match — return UNKNOWN (not RESIDENTIAL, since we can't confirm without a proper API)
+  // MVP: hardcoded CIDR ranges only detect DATACENTER. VPN_PROXY detection requires MaxMind GeoIP2 or similar — deferred to 500+ users. See TODO in SECURITY.md.
   return { classification: 'UNKNOWN', providerName: null, ipRange24 }
 }
 

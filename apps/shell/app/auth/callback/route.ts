@@ -63,9 +63,8 @@ export async function GET(request: Request) {
 
         if (ipResult.classification === 'DATACENTER' && !isVip) {
           await adjustTrustScore(adminClient, user.id, -50, 'datacenter_ip_signup', 'R19_DATACENTER_IP')
-        } else if (ipResult.classification === 'VPN_PROXY' && !isVip) {
-          await adjustTrustScore(adminClient, user.id, -30, 'vpn_ip_signup', 'R19_DATACENTER_IP')
         }
+        // TODO [Phase 5+]: Add VPN_PROXY trust penalty once MaxMind GeoIP2 is integrated
       } catch (ipErr) {
         console.error('IP classification error:', ipErr)
         // Do not block signup flow

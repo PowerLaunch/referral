@@ -88,5 +88,6 @@ export function getCountryFromIp(ip: string): string | null {
  */
 export function isVpnDetected(ipAddress: string): boolean {
   const result = classifyIp(ipAddress)
+  // VPN_PROXY will match once MaxMind integration ships
   return result.classification === 'VPN_PROXY' || result.classification === 'DATACENTER'
 }
