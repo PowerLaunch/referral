@@ -9,6 +9,7 @@ import {
 import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
 import { adjustTrustScore, getDynamicLockPeriodDays } from '@referral/api/trustScore'
+import { classifyReferralSource } from '@referral/api/sourceClassification'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -89,9 +90,11 @@ export async function GET(request: Request) {
                 p_country_code: countryCode,
               })
 
-            // Source attribution from user_metadata (set by /ref/[code] → signup flow)
-            const referralSource = (user.user_metadata?.referral_source as string | null) ?? null
-            const sourceClassification = (user.user_metadata?.source_classification as string | null) ?? null
+            // Source attribution: raw URL from user_metadata, classification computed server-side
+            // Never trust client-provided classification — always re-classify against DB blocklist
+            const rawSource = (user.user_metadata?.referral_source as string | null) ?? null
+            const { source: referralSource, classification: sourceClassification } =
+              await classifyReferralSource(adminClient, rawSource)
 
             if (honeymoonError) {
               console.error('Honeymoon referral insert failed:', honeymoonError)
@@ -122,7 +125,7 @@ export async function GET(request: Request) {
             }
 
             // Update source attribution on honeymoon-created referral row
-            if (!honeymoonError && honeymoonResult?.created && (referralSource || sourceClassification)) {
+            if (!honeymoonError && honeymoonResult?.created) {
               try {
                 await adminClient
                   .from('referrals')

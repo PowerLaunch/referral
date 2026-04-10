@@ -12,7 +12,6 @@ const GREEN_DOMAINS: string[] = [
   'instagram.com', 'l.instagram.com',
   'twitter.com', 'x.com', 't.co',
   'youtube.com', 'youtu.be',
-  'reddit.com', 'old.reddit.com',
   'whatsapp.com', 'wa.me',
   'messenger.com', 'm.me',
   'telegram.org', 't.me', 'web.telegram.org',

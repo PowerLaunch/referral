@@ -27,5 +27,5 @@ INSERT INTO source_blocklist (domain, added_by, notes) VALUES
   ('clickworker.com', NULL, 'Micro-task platform'),
   ('beermoney.ph', NULL, 'PH beermoney forum'),
   ('beermoneyforum.com', NULL, 'Beermoney forum'),
-  ('r/beermoney', NULL, 'Reddit beermoney'),
-  ('r/referralcodes', NULL, 'Reddit referral codes');
+  ('old.reddit.com', NULL, 'Reddit (old)'),
+  ('reddit.com', NULL, 'Reddit');

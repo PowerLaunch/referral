@@ -157,11 +157,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     // Group by referrer_id → count + distinct source domains
-    const referrerMap = new Map<string, { count: number; domains: Set<string>; referralIds: string[] }>()
+    const referrerMap = new Map<string, { count: number; domains: Set<string> }>()
     for (const row of redReferrals ?? []) {
       const referrerId = row.referrer_id as string
       if (!referrerMap.has(referrerId)) {
-        referrerMap.set(referrerId, { count: 0, domains: new Set(), referralIds: [] })
+        referrerMap.set(referrerId, { count: 0, domains: new Set() })
       }
       const entry = referrerMap.get(referrerId)!
       entry.count++
