@@ -6,15 +6,12 @@ export async function signupAction(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const referralCode = formData.get('referralCode') as string | null
-  const referralSource = formData.get('referralSource') as string | null
-
   const supabase = await createClient()
 
-  // Build user_metadata with referral code and raw source URL
-  // Classification is computed server-side in auth/callback — never trust client-provided classification
+  // Build user_metadata with referral code only
+  // Referral source is stored in httpOnly cookie — never in client-writable user_metadata
   const metadata: Record<string, string> = {}
   if (referralCode) metadata.referral_code = referralCode
-  if (referralSource) metadata.referral_source = referralSource
 
   const { data, error } = await supabase.auth.signUp({
     email,

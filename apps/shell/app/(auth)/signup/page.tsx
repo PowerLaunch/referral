@@ -43,10 +43,6 @@ function SignupForm() {
     if (referralCode) {
       formData.append('referralCode', referralCode)
     }
-    // Pass raw referral source URL through to signup action
-    // Classification is computed server-side in auth/callback to prevent client forgery
-    const src = searchParams.get('src')
-    if (src) formData.append('referralSource', src)
     const result = await signupAction(formData)
 
     if (result?.redirect) {

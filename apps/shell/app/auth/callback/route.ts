@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   getLockPeriodDays,
   getCountryFromIp,
@@ -11,7 +11,7 @@ import { createEmailPreferences } from '@referral/api/email'
 import { adjustTrustScore, getDynamicLockPeriodDays } from '@referral/api/trustScore'
 import { classifyReferralSource } from '@referral/api/sourceClassification'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
 
@@ -90,9 +90,9 @@ export async function GET(request: Request) {
                 p_country_code: countryCode,
               })
 
-            // Source attribution: raw URL from user_metadata, classification computed server-side
-            // Never trust client-provided classification — always re-classify against DB blocklist
-            const rawSource = (user.user_metadata?.referral_source as string | null) ?? null
+            // Source attribution: read from httpOnly cookie set by /ref/[code] route
+            // Cookie is not client-readable or forgeable — server-side capture of Referer header
+            const rawSource = request.cookies.get('__ref_src')?.value ?? null
             const { source: referralSource, classification: sourceClassification } =
               await classifyReferralSource(adminClient, rawSource)
 
@@ -212,5 +212,16 @@ export async function GET(request: Request) {
   }
 
   // Success — redirect to dashboard
-  return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+  const response = NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+
+  // Delete the __ref_src cookie after consuming it
+  response.cookies.set('__ref_src', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  })
+
+  return response
 }
