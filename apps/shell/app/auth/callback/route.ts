@@ -61,9 +61,7 @@ export async function GET(request: Request) {
       let vpnDetected = false
       try {
         const ipResult = await recordAndClassifyIp(adminClient, user.id, ip, 'SIGNUP')
-
-        // Derive vpnDetected from the single classification call — no redundant classifyIp()
-        vpnDetected = ipResult.classification === 'DATACENTER' || ipResult.classification === 'VPN_PROXY'
+        vpnDetected = ipResult.classification === 'VPN_PROXY' || ipResult.classification === 'DATACENTER'
 
         if (ipResult.classification === 'DATACENTER' && !isVip) {
           // Idempotency: partial unique index on trust_score_events prevents duplicate penalties

@@ -1,8 +1,6 @@
 // Lock period calculation for referral payouts
 // Country tiers from scope Section 2.6. Add new countries to the appropriate tier map — do not scatter country codes elsewhere.
 
-import { classifyIp } from './ipClassification'
-
 // Country risk tier maps — typed as Record<string, number> for type safety
 const LOW_RISK_COUNTRIES: Record<string, number> = {
   US: 30,
@@ -81,13 +79,3 @@ export function getCountryFromIp(ip: string): string | null {
   return null
 }
 
-/**
- * Detect if IP address belongs to a VPN/datacenter
- * @param ipAddress IP address to check
- * @returns true if datacenter/VPN detected, false otherwise
- */
-export function isVpnDetected(ipAddress: string): boolean {
-  const result = classifyIp(ipAddress)
-  // VPN_PROXY will match once MaxMind integration ships
-  return result.classification === 'VPN_PROXY' || result.classification === 'DATACENTER'
-}
