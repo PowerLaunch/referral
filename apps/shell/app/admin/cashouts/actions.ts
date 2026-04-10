@@ -229,7 +229,7 @@ export async function batchApproveLowRisk(
         return sum + severityPoints(f.severity)
       }, 0)
 
-      if (riskScore > 30) {
+      if (riskScore >= 30) {
         errors.push(`${payoutId}: risk score too high (${riskScore})`)
         skipped++
         continue

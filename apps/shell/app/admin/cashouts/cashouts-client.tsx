@@ -212,7 +212,7 @@ export default function CashoutsClient() {
               : `Batch Approve (${selectedIds.size} selected)`}
           </button>
           <span className="text-xs text-muted-foreground">
-            Only low-risk (&lt;30), under $25, non-first payouts will be approved
+            Only low-risk (score below 30), under $25, non-first payouts will be approved
           </span>
         </div>
       )}
