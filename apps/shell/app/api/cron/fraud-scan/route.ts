@@ -159,11 +159,26 @@ export async function GET(request: NextRequest): Promise<Response> {
       throw new Error(`Failed to fetch datacenter signups: ${dcError.message}`)
     }
 
-    // Group by ip_range_24 → Set of distinct user_ids
+    // VIP users excluded from cluster count — legitimate influencers use datacenter IPs
+    const allUserIds = new Set((dcSignups ?? []).map(r => r.user_id as string))
+    const vipUserIds = new Set<string>()
+    if (allUserIds.size > 0) {
+      const { data: vipProfiles } = await adminClient
+        .from('profiles')
+        .select('id')
+        .in('id', Array.from(allUserIds))
+        .eq('is_vip', true)
+      for (const p of vipProfiles ?? []) {
+        vipUserIds.add(p.id as string)
+      }
+    }
+
+    // Group by ip_range_24 → Set of distinct non-VIP user_ids
     const rangeMap = new Map<string, { users: Set<string>; provider: string | null }>()
     for (const row of dcSignups ?? []) {
-      const range = row.ip_range_24 as string
       const userId = row.user_id as string
+      if (vipUserIds.has(userId)) continue
+      const range = row.ip_range_24 as string
       if (!rangeMap.has(range)) {
         rangeMap.set(range, { users: new Set(), provider: row.provider_name as string | null })
       }
@@ -189,15 +204,6 @@ export async function GET(request: NextRequest): Promise<Response> {
           .maybeSingle()
 
         if (existingFlag) continue
-
-        // VIP exception
-        const { data: profile } = await adminClient
-          .from('profiles')
-          .select('is_vip')
-          .eq('id', userId)
-          .single()
-
-        if (profile?.is_vip) continue
 
         // Insert CRITICAL fraud flag
         const { error: flagError } = await adminClient
