@@ -11,10 +11,12 @@ import {
   runR5ZeroGameplay,
   runR6DisposableEmail,
   runGeoMismatch,
+  onCriticalFraudFlag,
 } from '@referral/api/fraudRules'
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import { awardCredits } from '@referral/api/credits'
 import { logAdminAction } from '@referral/api/riskScore'
+import { adjustTrustScore } from '@referral/api/trustScore'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -134,14 +136,125 @@ export async function GET(request: NextRequest): Promise<Response> {
     ruleFailures++
   }
 
-  if (ruleFailures > 0) {
-    console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
+  const adminClient = createAdminClient()
+
+  // R19: Datacenter IP Cluster Detection
+  // Finds /24 IP ranges with 5+ distinct users signing up from DATACENTER IPs in the last 7 days
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { data: dcSignups, error: dcError } = await adminClient
+      .from('ip_classifications')
+      .select('user_id, ip_range_24, provider_name')
+      .eq('classification', 'DATACENTER')
+      .eq('context', 'SIGNUP')
+      .gte('created_at', sevenDaysAgo)
+      .limit(10000)
+
+    if (dcError) {
+      throw new Error(`Failed to fetch datacenter signups: ${dcError.message}`)
+    }
+
+    // VIP users excluded from cluster count — legitimate influencers use datacenter IPs
+    const allUserIds = new Set((dcSignups ?? []).map(r => r.user_id as string))
+    const vipUserIds = new Set<string>()
+    if (allUserIds.size > 0) {
+      const { data: vipProfiles } = await adminClient
+        .from('profiles')
+        .select('id')
+        .in('id', Array.from(allUserIds))
+        .eq('is_vip', true)
+      for (const p of vipProfiles ?? []) {
+        vipUserIds.add(p.id as string)
+      }
+    }
+
+    // Group by ip_range_24 → Set of distinct non-VIP user_ids
+    const rangeMap = new Map<string, { users: Set<string>; provider: string | null }>()
+    for (const row of dcSignups ?? []) {
+      const userId = row.user_id as string
+      if (vipUserIds.has(userId)) continue
+      const range = row.ip_range_24 as string
+      if (!rangeMap.has(range)) {
+        rangeMap.set(range, { users: new Set(), provider: row.provider_name as string | null })
+      }
+      rangeMap.get(range)!.users.add(userId)
+    }
+
+    let r19Flagged = 0
+
+    for (const [ipRange, { users, provider }] of rangeMap) {
+      if (users.size < 5) continue
+
+      const userIds = Array.from(users)
+
+      for (const userId of userIds) {
+        // Idempotency window matches 7-day cluster detection window
+        const { data: existingFlag } = await adminClient
+          .from('fraud_flags')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('rule_triggered', 'R19_DATACENTER_CLUSTER')
+          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .limit(1)
+          .maybeSingle()
+
+        if (existingFlag) continue
+
+        // Insert CRITICAL fraud flag
+        const { error: flagError } = await adminClient
+          .from('fraud_flags')
+          .insert({
+            user_id: userId,
+            rule_triggered: 'R19_DATACENTER_CLUSTER',
+            severity: 'CRITICAL',
+            details: {
+              ip_range: ipRange,
+              account_count: users.size,
+              user_ids: userIds,
+              provider,
+            },
+          })
+
+        if (flagError) {
+          // Unique violation (already flagged) — skip silently
+          if (flagError.code !== '23505') {
+            console.error(`R19 flag insert error for ${userId}:`, flagError.message)
+          }
+          continue
+        }
+
+        // Void pending referrals — matches R1, R2, R7 pattern
+        try {
+          await onCriticalFraudFlag(userId, 'R19_DATACENTER_CLUSTER')
+        } catch (voidErr) {
+          console.error(`R19 void pending referrals error for ${userId}:`, voidErr)
+        }
+
+        // Adjust trust score: CRITICAL = -300
+        try {
+          await adjustTrustScore(adminClient, userId, -300, 'fraud_flag_critical', 'R19_DATACENTER_CLUSTER')
+        } catch (trustErr) {
+          console.error(`R19 trust score adjustment error for ${userId}:`, trustErr)
+        }
+
+        r19Flagged++
+      }
+    }
+
+    results.push({ rule: 'R19_DATACENTER_CLUSTER', flagged: r19Flagged })
+    totalFlagged += r19Flagged
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    results.push({ rule: 'R19_DATACENTER_CLUSTER', flagged: 0, error: errorMessage })
+    console.error('R19 failed:', error)
+    Sentry.captureException(error)
+    ruleFailures++
   }
 
   // Step 3 — Promote STAGED payouts whose staging window has expired
   // Runs here (every 15 min) instead of monthly recurring-payouts cron so
   // VETERAN payouts (1-hour staging) are promoted promptly.
-  const adminClient = createAdminClient()
   let stagedPromoted = 0
   let stagedCancelled = 0
 
@@ -246,6 +359,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   } catch (err) {
     console.error('Staged payout promotion error:', err)
     Sentry.captureException(err)
+  }
+
+  if (ruleFailures > 0) {
+    console.error(`fraud-scan completed with ${ruleFailures} rule failures`)
   }
 
   await recordCronSuccess('fraud-scan', adminClient, process.env.BETTERSTACK_HEARTBEAT_FRAUD_SCAN)

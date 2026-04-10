@@ -76,6 +76,13 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **Fires**: On 15-minute cron alongside R1-R6
 - **Implemented in**: PR 4-D
 
+### R19 — IP Infrastructure Classification
+- **Trigger**: Datacenter IP on signup → -50 trust score. Cluster of 5+ distinct user signups from same /24 datacenter range in 7 days → CRITICAL fraud_flag
+- **Action**: Trust score penalty on signup; CRITICAL flag + -300 trust score for datacenter clusters
+- **Fires**: Trust penalty at signup (real-time); cluster detection on 15-minute cron
+- **VIP Exception**: VIP users exempt from both signup penalty and cluster flagging
+- **Implemented in**: PR 10-B
+
 ---
 
 ## 3. Account-Level Controls
@@ -354,7 +361,7 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 ## Summary
 
 This platform implements defense-in-depth security:
-- **7 automated fraud rules** catching velocity, device clustering, Sybil attacks, disposables, zero-gameplay, cashout spikes, and geo-mismatches
+- **8 automated fraud rules** catching velocity, device clustering, Sybil attacks, disposables, zero-gameplay, cashout spikes, geo-mismatches, and datacenter IP clusters
 - **Graduated trust score system** (0-1000) with tier-based staging, caps, and lock period reduction
 - **Trust levels and status columns** enabling granular access control
 - **Payout guards** enforcing KYC, account age, subscription, and cooldown requirements

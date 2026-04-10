@@ -75,16 +75,7 @@ export function getLockPeriodDays(
  * @returns ISO 3166-1 alpha-2 country code or null
  */
 export function getCountryFromIp(ip: string): string | null {
-  // TODO: replace with real IP geolocation service in Phase 4. Returning null defaults to 60-day high-risk tier.
+  // TODO: Replace with MaxMind GeoIP2 API at 500+ users. Currently returns null → defaults to 60-day high-risk tier.
   return null
 }
 
-/**
- * Detect if IP address belongs to a VPN/datacenter
- * @param ipAddress IP address to check
- * @returns true if datacenter/VPN detected, false otherwise
- */
-export function isVpnDetected(ipAddress: string): boolean {
-  // TODO: replace with datacenter CIDR list check in Phase 4.
-  return false
-}
