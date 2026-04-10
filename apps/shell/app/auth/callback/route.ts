@@ -66,7 +66,7 @@ export async function GET(request: Request) {
           const { data: existingPenalty } = await adminClient
             .from('trust_score_events')
             .select('id')
-            .eq('profile_id', user.id)
+            .eq('user_id', user.id)
             .eq('reason', 'datacenter_ip_signup')
             .limit(1)
             .maybeSingle()

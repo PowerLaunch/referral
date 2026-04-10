@@ -11,6 +11,7 @@ import {
   runR5ZeroGameplay,
   runR6DisposableEmail,
   runGeoMismatch,
+  onCriticalFraudFlag,
 } from '@referral/api/fraudRules'
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import { awardCredits } from '@referral/api/credits'
@@ -220,6 +221,13 @@ export async function GET(request: NextRequest): Promise<Response> {
             console.error(`R19 flag insert error for ${userId}:`, flagError.message)
           }
           continue
+        }
+
+        // Void pending referrals — matches R1, R2, R7 pattern
+        try {
+          await onCriticalFraudFlag(userId, 'R19_DATACENTER_CLUSTER')
+        } catch (voidErr) {
+          console.error(`R19 void pending referrals error for ${userId}:`, voidErr)
         }
 
         // Adjust trust score: CRITICAL = -300
