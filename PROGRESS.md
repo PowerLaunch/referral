@@ -211,3 +211,4 @@ Complete these before starting PR 5-A:
 | 2026-04-09 | chore/branch-rule | PR #28 merged | chore: enforce branch-off-main rule |
 | 2026-04-09 | feat/hardening | PR #30 merged | feat: security audit + cron hardening (8-A/8-B) |
 | 2026-04-10 | feat/admin-cashouts-fraud | PR #29 merged | feat: cashout review + fraud management (7-D + 7-E) |
+| 2026-04-10 | feat/e2e-test-setup | PR #31 merged | feat: Phase 8 manual test procedures (8-C) |
