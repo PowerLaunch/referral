@@ -245,14 +245,13 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
         is_vip: vip,
       }
 
-      try {
-        await adminClient.from('graph_analysis_results').insert({
-          pattern_type: 'STAR_CLUSTER',
-          user_ids: allIds,
-          details: detailsObj,
-          severity,
-        })
-      } catch (insertErr) {
+      const { error: insertErr } = await adminClient.from('graph_analysis_results').insert({
+        pattern_type: 'STAR_CLUSTER',
+        user_ids: allIds,
+        details: detailsObj,
+        severity,
+      })
+      if (insertErr) {
         console.error('Star cluster result insert failed:', insertErr)
         continue
       }
@@ -312,14 +311,13 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
           has_vip_member: hasVip,
         }
 
-        try {
-          await adminClient.from('graph_analysis_results').insert({
-            pattern_type: 'BIPARTITE',
-            user_ids: sorted,
-            details: detailsObj,
-            severity,
-          })
-        } catch (insertErr) {
+        const { error: insertErr } = await adminClient.from('graph_analysis_results').insert({
+          pattern_type: 'BIPARTITE',
+          user_ids: sorted,
+          details: detailsObj,
+          severity,
+        })
+        if (insertErr) {
           console.error('Bipartite result insert failed:', insertErr)
           continue
         }
@@ -375,15 +373,14 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
               has_vip_member: hasVip,
             }
 
-            try {
-              await adminClient.from('graph_analysis_results').insert({
-                pattern_type: 'BIPARTITE',
-                user_ids: cycleSorted,
-                details: detailsObj,
-                severity,
-              })
-            } catch (insertErr) {
-              console.error('Bipartite cycle result insert failed:', insertErr)
+            const { error: cycleInsertErr } = await adminClient.from('graph_analysis_results').insert({
+              pattern_type: 'BIPARTITE',
+              user_ids: cycleSorted,
+              details: detailsObj,
+              severity,
+            })
+            if (cycleInsertErr) {
+              console.error('Bipartite cycle result insert failed:', cycleInsertErr)
               continue
             }
 
@@ -459,15 +456,8 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
     const smallComponents = components.filter((c) => c.length >= 3 && c.length <= 8)
 
     for (const component of smallComponents) {
-      // Check if ALL edges are internal
-      const { data: externalEdges, error: extErr } = await adminClient
-        .from('referrals')
-        .select('id', { count: 'exact', head: true })
-        .or(`referrer_id.in.(${component.join(',')}),referee_id.in.(${component.join(',')})`)
-        .not('referrer_id', 'in', `(${component.join(',')})`)
-        .limit(1)
-
-      // The above query is complex — use a simpler approach
+      // Check if ALL referral edges involving these users are internal (no external connections).
+      // Compare total edges touching the group vs edges fully within the group.
       const { count: totalEdges, error: totalErr } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
@@ -479,7 +469,7 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
         .in('referrer_id', component)
         .in('referee_id', component)
 
-      if (totalErr || intErr || extErr) continue
+      if (totalErr || intErr) continue
       if ((totalEdges ?? 0) !== (internalEdges ?? 0)) continue // Has external connections
 
       // Check shared signals (need at least 2 of 3)
@@ -563,15 +553,14 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
         has_vip_member: hasVip,
       }
 
-      try {
-        await adminClient.from('graph_analysis_results').insert({
-          pattern_type: 'CLIQUE',
-          user_ids: sorted,
-          details: detailsObj,
-          severity,
-        })
-      } catch (insertErr) {
-        console.error('Clique result insert failed:', insertErr)
+      const { error: cliqueInsertErr } = await adminClient.from('graph_analysis_results').insert({
+        pattern_type: 'CLIQUE',
+        user_ids: sorted,
+        details: detailsObj,
+        severity,
+      })
+      if (cliqueInsertErr) {
+        console.error('Clique result insert failed:', cliqueInsertErr)
         continue
       }
 
@@ -676,15 +665,14 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
           has_vip_member: hasVip,
         }
 
-        try {
-          await adminClient.from('graph_analysis_results').insert({
-            pattern_type: 'FAN_CONVERGE',
-            user_ids: allIds,
-            details: detailsObj,
-            severity,
-          })
-        } catch (insertErr) {
-          console.error('Fan converge result insert failed:', insertErr)
+        const { error: fpInsertErr } = await adminClient.from('graph_analysis_results').insert({
+          pattern_type: 'FAN_CONVERGE',
+          user_ids: allIds,
+          details: detailsObj,
+          severity,
+        })
+        if (fpInsertErr) {
+          console.error('Fan converge result insert failed:', fpInsertErr)
           continue
         }
 
@@ -740,15 +728,14 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
           has_vip_member: hasVip,
         }
 
-        try {
-          await adminClient.from('graph_analysis_results').insert({
-            pattern_type: 'FAN_CONVERGE',
-            user_ids: allIds,
-            details: detailsObj,
-            severity,
-          })
-        } catch (insertErr) {
-          console.error('Fan converge IP result insert failed:', insertErr)
+        const { error: ipInsertErr } = await adminClient.from('graph_analysis_results').insert({
+          pattern_type: 'FAN_CONVERGE',
+          user_ids: allIds,
+          details: detailsObj,
+          severity,
+        })
+        if (ipInsertErr) {
+          console.error('Fan converge IP result insert failed:', ipInsertErr)
           continue
         }
 
@@ -840,7 +827,9 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
       if (timestamps.length < 2) continue
 
       const twelveHoursMs = 12 * 60 * 60 * 1000
-      const target = Math.ceil(timestamps.length * 0.8)
+      // Target is 80% of ALL referees (not just those with referrals) to avoid
+      // the two-step filter (80% made referrals × 80% in window = only 64% effective threshold)
+      const target = Math.ceil(refereeIds.length * 0.8)
       let windowMatch = false
       let windowStart = 0
       let windowEnd = 0
@@ -879,15 +868,14 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
         is_vip: vip,
       }
 
-      try {
-        await adminClient.from('graph_analysis_results').insert({
-          pattern_type: 'GEN2_VELOCITY',
-          user_ids: allIds,
-          details: detailsObj,
-          severity,
-        })
-      } catch (insertErr) {
-        console.error('Gen2 velocity result insert failed:', insertErr)
+      const { error: gen2InsertErr } = await adminClient.from('graph_analysis_results').insert({
+        pattern_type: 'GEN2_VELOCITY',
+        user_ids: allIds,
+        details: detailsObj,
+        severity,
+      })
+      if (gen2InsertErr) {
+        console.error('Gen2 velocity result insert failed:', gen2InsertErr)
         continue
       }
 
