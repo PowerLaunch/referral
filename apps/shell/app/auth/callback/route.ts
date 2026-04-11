@@ -244,19 +244,31 @@ export async function GET(request: NextRequest) {
 
           if (clickTime !== null && submitTime !== null && (submitTime - clickTime) < 10_000) {
             if (!appliedReasons.has('fast_signup')) {
-              await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
+              try {
+                await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
             }
           }
 
           if ((telemetry.form_fill_ms ?? 0) < 5000 && (telemetry.form_fill_ms ?? 0) > 0) {
             if (!appliedReasons.has('fast_form_fill')) {
-              await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+              try {
+                await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
             }
           }
 
           if ((telemetry.input_corrections ?? 0) === 0) {
             if (!appliedReasons.has('no_corrections_signup')) {
-              await adjustTrustScore(adminClient, user.id, -15, 'no_corrections_signup')
+              try {
+                await adjustTrustScore(adminClient, user.id, -5, 'no_corrections_signup')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
             }
           }
         }
