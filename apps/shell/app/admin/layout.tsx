@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/disputes', label: 'Disputes' },
   { href: '/admin/influencers', label: 'Influencers' },
+  { href: '/admin/honeypot', label: 'Honeypot' },
   { href: '/admin/seed', label: 'Seed Users' },
   { href: '/admin/config', label: 'Config' },
   { href: '/admin/audit', label: 'Audit Log' },

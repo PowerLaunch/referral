@@ -132,6 +132,37 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   for (const referral of pendingReferrals) {
     try {
+      // --- Criterion -2: Honeypot/Canary exclusion ---
+      // Honeypot referrers and canary referees exist only to flag the other party.
+      // Their referrals must never confirm or pay out — they are fraud detection tools.
+      const { data: referrerProfile } = await adminClient
+        .from('profiles')
+        .select('is_honeypot')
+        .eq('id', referral.referrer_id)
+        .single()
+
+      if (referrerProfile?.is_honeypot) {
+        console.log(
+          `Referral ${referral.id} skipped: referrer is honeypot account`
+        )
+        skipped++
+        continue
+      }
+
+      const { data: refereeProfile } = await adminClient
+        .from('profiles')
+        .select('is_canary')
+        .eq('id', referral.referee_id)
+        .single()
+
+      if (refereeProfile?.is_canary) {
+        console.log(
+          `Referral ${referral.id} skipped: referee is canary account`
+        )
+        skipped++
+        continue
+      }
+
       // --- Criterion -1: Influencer lock_bypass check ---
       // Influencer lock_bypass: skips payout_eligible_at but enforces all other confirmation criteria
       const lockPeriodPassed = new Date(referral.payout_eligible_at) <= new Date()

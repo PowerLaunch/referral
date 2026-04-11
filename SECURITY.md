@@ -83,6 +83,15 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **VIP Exception**: VIP users exempt from both signup penalty and cluster flagging
 - **Implemented in**: PR 10-B
 
+### R_HONEYPOT — Honeypot / Canary Trap
+- **Trigger (Honeypot)**: User signs up via a honeypot referral code (leaked on suspicious forums by admin)
+- **Trigger (Canary)**: User refers a canary account (seeded by admin to detect referral farms)
+- **Action**: CRITICAL fraud_flag (rule: R_HONEYPOT) + trust score -200
+- **VIP Exception**: Severity downgraded to INFO (penalty still applied, no auto-freeze)
+- **Fires**: Real-time during signup (auth callback)
+- **Referral handling**: Referral row is created (preserves evidence) but will never confirm — cron skips honeypot referrers and canary referees
+- **Implemented in**: PR 10-F
+
 ### R17 — Red Source Attribution
 - **Trigger**: Referrer has 3+ referees from red-flagged source domains (standard accounts) or 10+ (VIP accounts)
 - **Action**: WARNING fraud_flag + -100 trust (standard) or INFO fraud_flag + -30 trust (VIP). One flag per referrer per calendar month.
