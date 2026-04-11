@@ -137,7 +137,7 @@ async function fetchRecentEdges(adminClient: SupabaseClient): Promise<ReferralEd
   const { data, error } = await adminClient
     .from('referrals')
     .select('referrer_id, referee_id')
-    .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+    .in('status', ['PENDING', 'CONFIRMED'])
     .gt('created_at', ninetyDaysAgo)
     .limit(50000)
 
@@ -161,7 +161,7 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
     const { data: candidates, error: candError } = await adminClient
       .from('referrals')
       .select('referrer_id')
-      .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+      .in('status', ['PENDING', 'CONFIRMED'])
       .gt('created_at', ninetyDaysAgo)
       .limit(50000)
 
@@ -189,7 +189,7 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
         .from('referrals')
         .select('referee_id')
         .eq('referrer_id', referrerId)
-        .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+        .in('status', ['PENDING', 'CONFIRMED'])
         .gt('created_at', ninetyDaysAgo)
         .limit(10000)
 
@@ -210,7 +210,7 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
       const zeroOutgoing = refereeIds.filter((id) => !refereesWithOutgoing.has(id)).length
       const zeroOutgoingPct = refereeIds.length > 0 ? zeroOutgoing / refereeIds.length : 0
 
-      if (zeroOutgoingPct <= 0.6) continue
+      if (zeroOutgoingPct < 0.6) continue
 
       // Check gameplay standard deviation
       const { data: gameplay, error: gpError } = await adminClient
@@ -473,14 +473,14 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
       const { count: totalEdges, error: totalErr } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+        .in('status', ['PENDING', 'CONFIRMED'])
         .gt('created_at', ninetyDaysAgoClique)
         .or(`referrer_id.in.(${component.join(',')}),referee_id.in.(${component.join(',')})`)
 
       const { count: internalEdges, error: intErr } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+        .in('status', ['PENDING', 'CONFIRMED'])
         .gt('created_at', ninetyDaysAgoClique)
         .in('referrer_id', component)
         .in('referee_id', component)
@@ -499,12 +499,18 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
         .in('user_id', component)
 
       if (ipData && ipData.length >= 2) {
-        const ipRanges = new Map<string, number>()
+        // Count DISTINCT users per IP range — a single user with multiple rows
+        // (e.g., SIGNUP and SESSION contexts) must not inflate the count.
+        const ipRangeUsers = new Map<string, Set<string>>()
         for (const row of ipData) {
           const range = row.ip_range_24 as string
-          if (range) ipRanges.set(range, (ipRanges.get(range) ?? 0) + 1)
+          const userId = row.user_id as string
+          if (range) {
+            if (!ipRangeUsers.has(range)) ipRangeUsers.set(range, new Set())
+            ipRangeUsers.get(range)!.add(userId)
+          }
         }
-        if ([...ipRanges.values()].some((count) => count >= 2)) {
+        if ([...ipRangeUsers.values()].some((users) => users.size >= 2)) {
           sharedSignalCount++
           sharedSignals.push('ip_range')
         }
@@ -517,12 +523,17 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
         .in('user_id', component)
 
       if (fpData && fpData.length >= 2) {
-        const fpHashes = new Map<string, number>()
+        // Count DISTINCT users per fingerprint — same dedup reason as IP above
+        const fpHashUsers = new Map<string, Set<string>>()
         for (const row of fpData) {
           const hash = row.fingerprint_hash as string
-          if (hash) fpHashes.set(hash, (fpHashes.get(hash) ?? 0) + 1)
+          const userId = row.user_id as string
+          if (hash) {
+            if (!fpHashUsers.has(hash)) fpHashUsers.set(hash, new Set())
+            fpHashUsers.get(hash)!.add(userId)
+          }
         }
-        if ([...fpHashes.values()].some((count) => count >= 2)) {
+        if ([...fpHashUsers.values()].some((users) => users.size >= 2)) {
           sharedSignalCount++
           sharedSignals.push('fingerprint')
         }
@@ -613,7 +624,7 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
     const { data: referees, error: refErr } = await adminClient
       .from('referrals')
       .select('referrer_id, referee_id')
-      .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+      .in('status', ['PENDING', 'CONFIRMED'])
       .gt('created_at', ninetyDaysAgo)
       .limit(50000)
 
@@ -795,7 +806,7 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
     const { data: referralRows, error: refErr } = await adminClient
       .from('referrals')
       .select('referrer_id, referee_id')
-      .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+      .in('status', ['PENDING', 'CONFIRMED'])
       .gt('created_at', ninetyDaysAgo)
       .limit(50000)
 
