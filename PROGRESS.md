@@ -217,3 +217,4 @@ Complete these before starting PR 5-A:
 | 2026-04-11 | feat/referral-source | PR #34 merged | feat: referral source attribution + R17 red source flag (Phase 10-C) |
 | 2026-04-11 | feat/signup-telemetry | PR #35 merged | feat: signup funnel anomaly detection (Phase 10-D) |
 | 2026-04-11 | feat/honeypot | PR #36 IN PROGRESS | feat: honeypot & canary fraud detection (Phase 10-F) |
+| 2026-04-11 | feat/honeypot | PR #36 merged | feat: honeypot & canary fraud detection (Phase 10-F) |
