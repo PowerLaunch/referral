@@ -216,3 +216,4 @@ Complete these before starting PR 5-A:
 | 2026-04-10 | feat/ip-classification | PR #33 merged | feat: IP infrastructure classification + R19 datacenter cluster (Phase 10-B) |
 | 2026-04-11 | feat/referral-source | PR #34 merged | feat: referral source attribution + R17 red source flag (Phase 10-C) |
 | 2026-04-11 | feat/signup-telemetry | PR #35 IN PROGRESS | feat: signup funnel anomaly detection (Phase 10-D) |
+| 2026-04-11 | feat/signup-telemetry | PR #35 merged | feat: signup funnel anomaly detection (Phase 10-D) |
