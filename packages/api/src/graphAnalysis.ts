@@ -197,11 +197,13 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
 
       const refereeIds = refereeRows.map((r) => r.referee_id as string)
 
-      // Check how many referees have zero outgoing referrals
+      // Check how many referees have zero outgoing referrals.
+      // Filter by status to exclude REJECTED/VOIDED — consistent with all other queries.
       const { data: outgoing, error: outErr } = await adminClient
         .from('referrals')
         .select('referrer_id')
         .in('referrer_id', refereeIds)
+        .in('status', ['PENDING', 'CONFIRMED'])
         .limit(10000)
 
       if (outErr) continue
