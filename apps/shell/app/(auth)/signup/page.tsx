@@ -13,7 +13,6 @@ function SignupForm() {
   const searchParams = useSearchParams()
 
   // Telemetry state — collected silently, never shown in UI
-  const [scrollEvents, setScrollEvents] = useState(0)
   const [inputCorrections, setInputCorrections] = useState(0)
   const firstFocusAt = useRef<number | null>(null)
 
@@ -24,13 +23,6 @@ function SignupForm() {
       setReferralCode(ref)
     }
   }, [searchParams])
-
-  // Track scroll events
-  useEffect(() => {
-    const handler = () => setScrollEvents((prev) => prev + 1)
-    window.addEventListener('scroll', handler)
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
 
   // Track first form field focus
   const handleFieldFocus = useCallback(() => {
@@ -77,7 +69,6 @@ function SignupForm() {
     const telemetry = JSON.stringify({
       link_click_at: linkClickAt ? new Date(Number(linkClickAt)).toISOString() : null,
       signup_submit_at: submitAt,
-      scroll_events: scrollEvents,
       form_fill_ms: formFillMs,
       input_corrections: inputCorrections,
     })

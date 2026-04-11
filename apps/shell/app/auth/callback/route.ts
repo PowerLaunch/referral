@@ -218,7 +218,6 @@ export async function GET(request: NextRequest) {
           const telemetry = JSON.parse(rawTelemetry) as {
             link_click_at: string | null
             signup_submit_at: string | null
-            scroll_events: number
             form_fill_ms: number
             input_corrections: number
           }
@@ -229,24 +228,36 @@ export async function GET(request: NextRequest) {
             .update({ signup_telemetry: telemetry })
             .eq('id', user.id)
 
-          // Trust adjustments — soft signals only, never block signup
+          // Trust adjustments — soft signals only, never block signup.
+          // Each adjustment is idempotency-guarded: check trust_score_events before calling RPC.
           const submitTime = telemetry.signup_submit_at ? new Date(telemetry.signup_submit_at).getTime() : null
           const clickTime = telemetry.link_click_at ? new Date(telemetry.link_click_at).getTime() : null
 
-          if (clickTime !== null && submitTime !== null && (submitTime - clickTime) < 10_000) {
-            await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
-          }
+          // Batch-fetch existing telemetry trust events for this user to avoid N+1 queries
+          const telemetryReasons = ['fast_signup', 'fast_form_fill', 'no_corrections_signup'] as const
+          const { data: existingTelemetryEvents } = await adminClient
+            .from('trust_score_events')
+            .select('reason')
+            .eq('user_id', user.id)
+            .in('reason', [...telemetryReasons])
+          const appliedReasons = new Set(existingTelemetryEvents?.map((e) => e.reason) ?? [])
 
-          if ((telemetry.scroll_events ?? 0) === 0) {
-            await adjustTrustScore(adminClient, user.id, -20, 'no_scroll_signup')
+          if (clickTime !== null && submitTime !== null && (submitTime - clickTime) < 10_000) {
+            if (!appliedReasons.has('fast_signup')) {
+              await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
+            }
           }
 
           if ((telemetry.form_fill_ms ?? 0) < 5000 && (telemetry.form_fill_ms ?? 0) > 0) {
-            await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+            if (!appliedReasons.has('fast_form_fill')) {
+              await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+            }
           }
 
           if ((telemetry.input_corrections ?? 0) === 0) {
-            await adjustTrustScore(adminClient, user.id, -15, 'no_corrections_signup')
+            if (!appliedReasons.has('no_corrections_signup')) {
+              await adjustTrustScore(adminClient, user.id, -15, 'no_corrections_signup')
+            }
           }
         }
       } catch (telemetryErr) {
