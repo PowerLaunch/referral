@@ -211,6 +211,78 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Signup telemetry: store client-side timing signals and apply trust adjustments
+      try {
+        const rawTelemetry = user.user_metadata?.signup_telemetry as string | null
+        if (rawTelemetry) {
+          const telemetry = JSON.parse(rawTelemetry) as {
+            link_click_at: string | null
+            signup_submit_at: string | null
+            form_fill_ms: number
+            input_corrections: number
+          }
+
+          // Write telemetry to profiles.signup_telemetry — non-critical, log and continue on failure
+          const { error: telemetryWriteError } = await adminClient
+            .from('profiles')
+            .update({ signup_telemetry: telemetry })
+            .eq('id', user.id)
+          if (telemetryWriteError) {
+            console.error('Failed to write signup telemetry:', telemetryWriteError)
+          }
+
+          // Trust adjustments — soft signals only, never block signup.
+          // Each adjustment is idempotency-guarded: check trust_score_events before calling RPC.
+          const submitTime = telemetry.signup_submit_at ? new Date(telemetry.signup_submit_at).getTime() : null
+          const clickTime = telemetry.link_click_at ? new Date(telemetry.link_click_at).getTime() : null
+
+          // Batch-fetch existing telemetry trust events for this user to avoid N+1 queries
+          const telemetryReasons = ['fast_signup', 'fast_form_fill', 'no_corrections_signup'] as const
+          const { data: existingTelemetryEvents } = await adminClient
+            .from('trust_score_events')
+            .select('reason')
+            .eq('user_id', user.id)
+            .in('reason', [...telemetryReasons])
+          const appliedReasons = new Set(existingTelemetryEvents?.map((e) => e.reason) ?? [])
+
+          const signupDeltaMs = (clickTime !== null && submitTime !== null) ? submitTime - clickTime : null
+
+          if (signupDeltaMs !== null && signupDeltaMs >= 0 && signupDeltaMs < 10_000) {
+            if (!appliedReasons.has('fast_signup')) {
+              try {
+                await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
+            }
+          }
+
+          if ((telemetry.form_fill_ms ?? 0) < 5000 && (telemetry.form_fill_ms ?? 0) > 0) {
+            if (!appliedReasons.has('fast_form_fill')) {
+              try {
+                await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
+            }
+          }
+
+          // Reduced from -15 to -5 (BugBot round 4) — original value pushed all accurate typists below PROBATION threshold
+          if ((telemetry.input_corrections ?? 0) === 0) {
+            if (!appliedReasons.has('no_corrections_signup')) {
+              try {
+                await adjustTrustScore(adminClient, user.id, -5, 'no_corrections_signup')
+              } catch (e: unknown) {
+                if ((e as { code?: string }).code !== '23505') throw e
+              }
+            }
+          }
+        }
+      } catch (telemetryErr) {
+        console.error('Signup telemetry processing error:', telemetryErr)
+        // Do not block signup flow
+      }
+
       // VIP trust score initialization
       // If the user is_vip (set by admin or influencer code), give +300 trust score
       // to bring them from default 200 to 500 (TRUSTED tier).
