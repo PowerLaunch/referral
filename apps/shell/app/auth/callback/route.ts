@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   getLockPeriodDays,
   getCountryFromIp,
@@ -9,8 +9,9 @@ import { awardCredits } from '@referral/api/credits'
 import { createEmailPreferences } from '@referral/api/email'
 import { adjustTrustScore, getDynamicLockPeriodDays } from '@referral/api/trustScore'
 import { recordAndClassifyIp } from '@referral/api/ipClassification'
+import { classifyReferralSource } from '@referral/api/sourceClassification'
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
 
@@ -130,6 +131,12 @@ export async function GET(request: Request) {
                 p_country_code: countryCode,
               })
 
+            // Source attribution: read from httpOnly cookie set by /ref/[code] route
+            // Cookie is not client-readable or forgeable — server-side capture of Referer header
+            const rawSource = request.cookies.get('__ref_src')?.value ?? null
+            const { source: referralSource, classification: sourceClassification } =
+              await classifyReferralSource(adminClient, rawSource)
+
             if (honeymoonError) {
               console.error('Honeymoon referral insert failed:', honeymoonError)
               // Fail open: insert referral directly without honeymoon check.
@@ -146,6 +153,8 @@ export async function GET(request: Request) {
                   payout_eligible_at: payoutEligibleAt.toISOString(),
                   country_code: countryCode,
                   lock_timer_frozen: false,
+                  referral_source: referralSource,
+                  source_classification: sourceClassification,
                 })
               if (fallbackError) {
                 console.error('Fallback referral insert also failed:', fallbackError)
@@ -154,6 +163,21 @@ export async function GET(request: Request) {
               console.log(
                 `Referral honeymoon: referrer ${referrerProfile.id} blocked until ${honeymoonResult.unlocks_at}`
               )
+            }
+
+            // Update source attribution on honeymoon-created referral row
+            if (!honeymoonError && honeymoonResult?.created) {
+              const { error: sourceUpdateError } = await adminClient
+                .from('referrals')
+                .update({
+                  referral_source: referralSource,
+                  source_classification: sourceClassification,
+                })
+                .eq('referee_id', user.id)
+
+              if (sourceUpdateError) {
+                console.error('Failed to update referral source:', sourceUpdateError.message)
+              }
             }
           }
         }
@@ -223,5 +247,16 @@ export async function GET(request: Request) {
   }
 
   // Success — redirect to dashboard
-  return NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+  const response = NextResponse.redirect(`${requestUrl.origin}/dashboard`)
+
+  // Delete the __ref_src cookie after consuming it
+  response.cookies.set('__ref_src', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  })
+
+  return response
 }
