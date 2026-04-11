@@ -93,6 +93,20 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **Referral handling**: Referral row is created (preserves evidence) then voided by cron — honeypot/canary referrals never confirm or pay out
 - **Implemented in**: PR 10-F
 
+### R16 — Referral Graph Topology (5 sub-patterns)
+
+All R16 sub-patterns fire every 6 hours via `/api/cron/graph-analysis`. They analyze the shape of the referral network to catch coordinated fraud rings. Results stored in `graph_analysis_results`. All patterns: flag and review only, never auto-ban.
+
+- **R16_STAR_CLUSTER**: One referrer with 15+ referees (50+ for VIP), 60%+ have zero outgoing referrals, gameplay stdev < 2 min. Severity: WARNING (INFO for VIP). Trust: -100 / -30.
+- **R16_BIPARTITE**: Referral swap rings — accounts that refer each other in cycles (length 2-8). Severity: CRITICAL always (no legitimate use case). Trust: -300. VIP exception: no auto-freeze, flag only.
+- **R16_CLIQUE**: Small isolated groups (3-8 accounts) with only internal referrals and 2+ shared signals (IP range, fingerprint, signup time). Severity: WARNING (INFO for VIP). Trust: -100 / -30.
+- **R16_FAN_CONVERGE**: 3+ independent referrers whose referees share a device fingerprint or IP /24 range. Severity: CRITICAL (INFO for VIP). Trust: -300 / -30.
+- **R16_GEN2_VELOCITY**: Referrer's 5+ referees (20+ for VIP) all make their first outgoing referral within the same 12-hour window. Severity: WARNING (INFO for VIP). Trust: -100 / -30.
+- **VIP exception**: Elevated thresholds, severity downgrade (except BIPARTITE), never auto-freeze
+- **Cycle detection**: BFS-based with depth limit 8 (chosen over recursive SQL CTE for safety and bounded cost)
+- **Idempotency**: Checks existing unresolved `graph_analysis_results` with overlapping `user_ids` before flagging
+- **Implemented in**: PR 10-E
+
 ### R17 — Red Source Attribution
 - **Trigger**: Referrer has 3+ referees from red-flagged source domains (standard accounts) or 10+ (VIP accounts)
 - **Action**: WARNING fraud_flag + -100 trust (standard) or INFO fraud_flag + -30 trust (VIP). One flag per referrer per calendar month.

@@ -8,6 +8,7 @@
     { "path": "/api/cron/recurring-payouts",  "schedule": "0 3 1 * *"      },
     { "path": "/api/cron/fraud-scan",         "schedule": "*/15 * * * *"   },
     { "path": "/api/cron/kyc-cleanup",        "schedule": "0 4 * * *"      },
-    { "path": "/api/cron/trust-score-recalc", "schedule": "0 5 1 * *"      }
+    { "path": "/api/cron/trust-score-recalc", "schedule": "0 5 1 * *"      },
+    { "path": "/api/cron/graph-analysis",    "schedule": "0 */6 * * *"     }
   ]
 }
