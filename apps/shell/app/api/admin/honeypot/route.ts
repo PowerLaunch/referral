@@ -4,9 +4,10 @@ import { logAdminAction } from '@referral/api/riskScore'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-const CreateHoneypotSchema = z.object({
-  display_name: z.string().trim().max(100).optional(),
-})
+// Empty schema — honeypot creation requires no input.
+// display_name was removed as dead code (BugBot round 4): the field was validated
+// but never written to the profile or auth user.
+const CreateHoneypotSchema = z.object({})
 
 const ListParamsSchema = z.object({
   page: z.coerce.number().int().positive().default(1),

@@ -5,7 +5,6 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 const CreateCanarySchema = z.object({
-  display_name: z.string().trim().max(100).optional(),
   seed_gameplay: z.boolean().optional().default(false),
 })
 

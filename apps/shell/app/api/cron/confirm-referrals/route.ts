@@ -197,6 +197,9 @@ export async function GET(request: NextRequest): Promise<Response> {
             .single()
           const referrerIsVip = referrerVipCheck?.is_vip === true
 
+          // fraud_flag insert is guarded by idx_fraud_flags_user_rule_day unique index.
+          // On reprocessing (e.g., if void below fails), duplicate 23505 errors are expected and ignored.
+          // The referral is voided after this block to prevent infinite reprocessing.
           const severity = referrerIsVip ? 'INFO' : 'CRITICAL'
           const { error: flagError } = await adminClient.from('fraud_flags').insert({
             user_id: referral.referrer_id as string,
