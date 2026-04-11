@@ -130,40 +130,39 @@ export async function POST(request: Request): Promise<Response> {
       const now = Date.now()
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
 
-      // Generate 5-10 realistic gameplay sessions spread over past 30 days
+      // Generate 5-10 realistic gameplay sessions
       const countBuf = crypto.getRandomValues(new Uint8Array(1))
       const sessionCount = 5 + Math.floor((countBuf[0] ?? 0) / 256 * 6)
       let totalMinutes = 0
+      let latestHeartbeat = 0
 
+      // Compute aggregate totals and track most recent heartbeat
+      const durationBufs = crypto.getRandomValues(new Uint8Array(sessionCount))
+      const offsetBufs = crypto.getRandomValues(new Uint32Array(sessionCount))
       for (let i = 0; i < sessionCount; i++) {
-        // Random offset within past 30 days
-        const offsetBuf = crypto.getRandomValues(new Uint32Array(1))
-        const offsetMs = ((offsetBuf[0] ?? 0) / 0xFFFFFFFF) * thirtyDaysMs
-        const sessionDate = new Date(now - offsetMs)
-
-        // Random duration between 10-45 minutes
-        const durationBuf = crypto.getRandomValues(new Uint8Array(1))
-        const durationMinutes = 10 + Math.floor((durationBuf[0] ?? 0) / 256 * 36)
+        const durationMinutes = 10 + Math.floor((durationBufs[i] ?? 0) / 256 * 36)
         totalMinutes += durationMinutes
 
-        // Insert heartbeat-style record for this session
-        const heartbeatAt = new Date(sessionDate.getTime() + durationMinutes * 60 * 1000)
-
-        // Update the single gameplay_sessions row (upsert pattern)
-        if (i === sessionCount - 1) {
-          const { error: seedWriteError } = await adminClient
-            .from('gameplay_sessions')
-            .upsert({
-              user_id: userId,
-              total_minutes: totalMinutes,
-              session_count: sessionCount,
-              last_heartbeat_at: heartbeatAt.toISOString(),
-            }, { onConflict: 'user_id' })
-
-          if (seedWriteError) {
-            throw seedWriteError
-          }
+        const offsetMs = ((offsetBufs[i] ?? 0) / 0xFFFFFFFF) * thirtyDaysMs
+        const sessionStart = now - offsetMs
+        const heartbeatMs = sessionStart + durationMinutes * 60 * 1000
+        if (heartbeatMs > latestHeartbeat) {
+          latestHeartbeat = heartbeatMs
         }
+      }
+
+      // Single upsert with aggregated data and chronologically latest heartbeat
+      const { error: seedWriteError } = await adminClient
+        .from('gameplay_sessions')
+        .upsert({
+          user_id: userId,
+          total_minutes: totalMinutes,
+          session_count: sessionCount,
+          last_heartbeat_at: new Date(latestHeartbeat).toISOString(),
+        }, { onConflict: 'user_id' })
+
+      if (seedWriteError) {
+        throw seedWriteError
       }
     } catch (seedErr) {
       console.error('Failed to seed canary gameplay data:', seedErr)

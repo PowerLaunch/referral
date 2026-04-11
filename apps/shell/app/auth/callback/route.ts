@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
             if (referrerProfile.is_honeypot) {
               try {
                 const honeypotSeverity = isVip ? 'INFO' : 'CRITICAL'
-                await adminClient.from('fraud_flags').insert({
+                const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
                   user_id: user.id,
                   rule_triggered: 'R_HONEYPOT',
                   severity: honeypotSeverity,
@@ -195,6 +195,9 @@ export async function GET(request: NextRequest) {
                     honeypot_profile_id: referrerProfile.id,
                   },
                 })
+                if (flagInsertError && flagInsertError.code !== '23505') {
+                  console.error(`Honeypot fraud_flag insert failed for user ${user.id}:`, flagInsertError)
+                }
 
                 try {
                   await adjustTrustScore(adminClient, user.id, -200, 'honeypot_signup', 'R_HONEYPOT')

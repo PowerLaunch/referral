@@ -160,6 +160,8 @@ export async function GET(request: NextRequest): Promise<Response> {
           .eq('status', 'PENDING')
         if (voidError) {
           console.error(`Referral ${referral.id}: failed to void honeypot referral:`, voidError)
+          errors++
+          continue
         }
         console.log(
           `Referral ${referral.id} voided: referrer is honeypot account`
@@ -196,7 +198,7 @@ export async function GET(request: NextRequest): Promise<Response> {
           const referrerIsVip = referrerVipCheck?.is_vip === true
 
           const severity = referrerIsVip ? 'INFO' : 'CRITICAL'
-          await adminClient.from('fraud_flags').insert({
+          const { error: flagError } = await adminClient.from('fraud_flags').insert({
             user_id: referral.referrer_id as string,
             rule_triggered: 'R_HONEYPOT',
             severity,
@@ -205,6 +207,13 @@ export async function GET(request: NextRequest): Promise<Response> {
               referrer_id: referral.referrer_id,
             },
           })
+          if (flagError) {
+            // Log but continue — the referral will still be voided below.
+            // Duplicate flag (23505) is expected on reprocessing.
+            if (flagError.code !== '23505') {
+              console.error(`Canary fraud_flag insert failed for referrer ${referral.referrer_id}:`, flagError)
+            }
+          }
 
           try {
             await adjustTrustScore(adminClient, referral.referrer_id as string, -200, 'canary_referral', 'R_HONEYPOT')
@@ -243,6 +252,8 @@ export async function GET(request: NextRequest): Promise<Response> {
           .eq('status', 'PENDING')
         if (voidError) {
           console.error(`Referral ${referral.id}: failed to void canary referral:`, voidError)
+          errors++
+          continue
         }
         console.log(
           `Referral ${referral.id} voided: referee is canary account (referrer flagged)`
