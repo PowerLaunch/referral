@@ -6,12 +6,14 @@ export async function signupAction(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   const referralCode = formData.get('referralCode') as string | null
+  const signupTelemetry = formData.get('signupTelemetry') as string | null
   const supabase = await createClient()
 
-  // Build user_metadata with referral code only
+  // Build user_metadata with referral code and telemetry
   // Referral source is stored in httpOnly cookie — never in client-writable user_metadata
   const metadata: Record<string, string> = {}
   if (referralCode) metadata.referral_code = referralCode
+  if (signupTelemetry) metadata.signup_telemetry = signupTelemetry
 
   const { data, error } = await supabase.auth.signUp({
     email,

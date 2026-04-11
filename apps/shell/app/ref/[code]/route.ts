@@ -23,9 +23,10 @@ export async function GET(
     src = referer.length > 500 ? referer.slice(0, 500) : referer
   }
 
-  // Build redirect URL with referral code only (no src param — source stored in httpOnly cookie)
+  // Build redirect URL with referral code and link click timestamp
   const redirectUrl = new URL('/signup', request.url)
   redirectUrl.searchParams.set('ref', code)
+  redirectUrl.searchParams.set('lca', Date.now().toString())
 
   const response = NextResponse.redirect(redirectUrl)
 

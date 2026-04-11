@@ -211,6 +211,49 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Signup telemetry: store client-side timing signals and apply trust adjustments
+      try {
+        const rawTelemetry = user.user_metadata?.signup_telemetry as string | null
+        if (rawTelemetry) {
+          const telemetry = JSON.parse(rawTelemetry) as {
+            link_click_at: string | null
+            signup_submit_at: string | null
+            scroll_events: number
+            form_fill_ms: number
+            input_corrections: number
+          }
+
+          // Write telemetry to profiles.signup_telemetry
+          await adminClient
+            .from('profiles')
+            .update({ signup_telemetry: telemetry })
+            .eq('id', user.id)
+
+          // Trust adjustments — soft signals only, never block signup
+          const submitTime = telemetry.signup_submit_at ? new Date(telemetry.signup_submit_at).getTime() : null
+          const clickTime = telemetry.link_click_at ? new Date(telemetry.link_click_at).getTime() : null
+
+          if (clickTime !== null && submitTime !== null && (submitTime - clickTime) < 10_000) {
+            await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
+          }
+
+          if ((telemetry.scroll_events ?? 0) === 0) {
+            await adjustTrustScore(adminClient, user.id, -20, 'no_scroll_signup')
+          }
+
+          if ((telemetry.form_fill_ms ?? 0) < 5000 && (telemetry.form_fill_ms ?? 0) > 0) {
+            await adjustTrustScore(adminClient, user.id, -30, 'fast_form_fill')
+          }
+
+          if ((telemetry.input_corrections ?? 0) === 0) {
+            await adjustTrustScore(adminClient, user.id, -15, 'no_corrections_signup')
+          }
+        }
+      } catch (telemetryErr) {
+        console.error('Signup telemetry processing error:', telemetryErr)
+        // Do not block signup flow
+      }
+
       // VIP trust score initialization
       // If the user is_vip (set by admin or influencer code), give +300 trust score
       // to bring them from default 200 to 500 (TRUSTED tier).

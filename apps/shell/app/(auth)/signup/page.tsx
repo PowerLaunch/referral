@@ -1,7 +1,7 @@
 'use client'
 
 import { signupAction } from './actions'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 function SignupForm() {
@@ -12,6 +12,11 @@ function SignupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Telemetry state — collected silently, never shown in UI
+  const [scrollEvents, setScrollEvents] = useState(0)
+  const [inputCorrections, setInputCorrections] = useState(0)
+  const firstFocusAt = useRef<number | null>(null)
+
   useEffect(() => {
     // Capture ?ref=[CODE] from URL
     const ref = searchParams.get('ref')
@@ -19,6 +24,27 @@ function SignupForm() {
       setReferralCode(ref)
     }
   }, [searchParams])
+
+  // Track scroll events
+  useEffect(() => {
+    const handler = () => setScrollEvents((prev) => prev + 1)
+    window.addEventListener('scroll', handler)
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
+
+  // Track first form field focus
+  const handleFieldFocus = useCallback(() => {
+    if (firstFocusAt.current === null) {
+      firstFocusAt.current = Date.now()
+    }
+  }, [])
+
+  // Track input corrections (Backspace/Delete)
+  const handleFieldKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      setInputCorrections((prev) => prev + 1)
+    }
+  }, [])
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -43,6 +69,20 @@ function SignupForm() {
     if (referralCode) {
       formData.append('referralCode', referralCode)
     }
+
+    // Bundle telemetry into form data
+    const linkClickAt = searchParams.get('lca')
+    const submitAt = new Date().toISOString()
+    const formFillMs = firstFocusAt.current !== null ? Date.now() - firstFocusAt.current : 0
+    const telemetry = JSON.stringify({
+      link_click_at: linkClickAt ? new Date(Number(linkClickAt)).toISOString() : null,
+      signup_submit_at: submitAt,
+      scroll_events: scrollEvents,
+      form_fill_ms: formFillMs,
+      input_corrections: inputCorrections,
+    })
+    formData.append('signupTelemetry', telemetry)
+
     const result = await signupAction(formData)
 
     if (result?.redirect) {
@@ -69,6 +109,8 @@ function SignupForm() {
                 name="email"
                 type="email"
                 required
+                onFocus={handleFieldFocus}
+                onKeyDown={handleFieldKeyDown}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
               />
             </div>
@@ -84,6 +126,8 @@ function SignupForm() {
                 minLength={8}
                 value={password}
                 onChange={handlePasswordChange}
+                onFocus={handleFieldFocus}
+                onKeyDown={handleFieldKeyDown}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
               />
               {passwordError && (
