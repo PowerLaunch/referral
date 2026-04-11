@@ -827,11 +827,13 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
       const threshold = vip ? 20 : 5
       if (refereeIds.length < threshold) continue
 
-      // For each referee, find their first outgoing referral timestamp
+      // For each referee, find their first outgoing referral timestamp.
+      // Filter by status to exclude REJECTED/VOIDED — only active referrals count.
       const { data: gen2Rows, error: gen2Err } = await adminClient
         .from('referrals')
         .select('referrer_id, created_at')
         .in('referrer_id', refereeIds)
+        .in('status', ['PENDING', 'CONFIRMED'])
         .order('created_at', { ascending: true })
         .limit(50000)
 
