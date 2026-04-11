@@ -67,7 +67,16 @@ function SignupForm() {
     const submitAt = new Date().toISOString()
     const formFillMs = firstFocusAt.current !== null ? Date.now() - firstFocusAt.current : 0
     const telemetry = JSON.stringify({
-      link_click_at: linkClickAt ? new Date(Number(linkClickAt)).toISOString() : null,
+      link_click_at: (() => {
+        if (!linkClickAt) return null
+        try {
+          const ms = Number(linkClickAt)
+          if (Number.isNaN(ms)) return null
+          return new Date(ms).toISOString()
+        } catch {
+          return null
+        }
+      })(),
       signup_submit_at: submitAt,
       form_fill_ms: formFillMs,
       input_corrections: inputCorrections,
