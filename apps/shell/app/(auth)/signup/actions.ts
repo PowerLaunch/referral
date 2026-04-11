@@ -13,7 +13,26 @@ export async function signupAction(formData: FormData) {
   // Referral source is stored in httpOnly cookie — never in client-writable user_metadata
   const metadata: Record<string, string> = {}
   if (referralCode) metadata.referral_code = referralCode
-  if (signupTelemetry) metadata.signup_telemetry = signupTelemetry
+
+  // Validate telemetry before forwarding to auth metadata — silently drop if invalid
+  if (signupTelemetry && signupTelemetry.length <= 1024) {
+    try {
+      const parsed = JSON.parse(signupTelemetry) as Record<string, unknown>
+      const allowedKeys = new Set(['link_click_at', 'signup_submit_at', 'form_fill_ms', 'input_corrections'])
+      const keys = Object.keys(parsed)
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        keys.length > 0 &&
+        keys.every((k) => allowedKeys.has(k))
+      ) {
+        metadata.signup_telemetry = signupTelemetry
+      }
+    } catch {
+      // Invalid JSON — silently drop telemetry, do not block signup
+    }
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,

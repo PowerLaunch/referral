@@ -222,11 +222,14 @@ export async function GET(request: NextRequest) {
             input_corrections: number
           }
 
-          // Write telemetry to profiles.signup_telemetry
-          await adminClient
+          // Write telemetry to profiles.signup_telemetry — non-critical, log and continue on failure
+          const { error: telemetryWriteError } = await adminClient
             .from('profiles')
             .update({ signup_telemetry: telemetry })
             .eq('id', user.id)
+          if (telemetryWriteError) {
+            console.error('Failed to write signup telemetry:', telemetryWriteError)
+          }
 
           // Trust adjustments — soft signals only, never block signup.
           // Each adjustment is idempotency-guarded: check trust_score_events before calling RPC.
