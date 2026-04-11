@@ -242,7 +242,9 @@ export async function GET(request: NextRequest) {
             .in('reason', [...telemetryReasons])
           const appliedReasons = new Set(existingTelemetryEvents?.map((e) => e.reason) ?? [])
 
-          if (clickTime !== null && submitTime !== null && (submitTime - clickTime) < 10_000) {
+          const signupDeltaMs = (clickTime !== null && submitTime !== null) ? submitTime - clickTime : null
+
+          if (signupDeltaMs !== null && signupDeltaMs >= 0 && signupDeltaMs < 10_000) {
             if (!appliedReasons.has('fast_signup')) {
               try {
                 await adjustTrustScore(adminClient, user.id, -40, 'fast_signup')
@@ -262,6 +264,7 @@ export async function GET(request: NextRequest) {
             }
           }
 
+          // Reduced from -15 to -5 (BugBot round 4) — original value pushed all accurate typists below PROBATION threshold
           if ((telemetry.input_corrections ?? 0) === 0) {
             if (!appliedReasons.has('no_corrections_signup')) {
               try {
