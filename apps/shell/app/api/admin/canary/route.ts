@@ -142,9 +142,12 @@ export async function POST(request: Request): Promise<Response> {
         const durationMinutes = 10 + Math.floor((durationBufs[i] ?? 0) / 256 * 36)
         totalMinutes += durationMinutes
 
-        const offsetMs = ((offsetBufs[i] ?? 0) / 0xFFFFFFFF) * thirtyDaysMs
+        // Minimum 60-minute offset so session start + duration stays in the past
+        const minOffsetMs = 60 * 60 * 1000
+        const offsetMs = minOffsetMs + ((offsetBufs[i] ?? 0) / 0xFFFFFFFF) * (thirtyDaysMs - minOffsetMs)
         const sessionStart = now - offsetMs
-        const heartbeatMs = sessionStart + durationMinutes * 60 * 1000
+        // Safety cap: heartbeat must be at least 1 minute in the past
+        const heartbeatMs = Math.min(sessionStart + durationMinutes * 60 * 1000, now - 60_000)
         if (heartbeatMs > latestHeartbeat) {
           latestHeartbeat = heartbeatMs
         }
