@@ -15,6 +15,8 @@ function SignupForm() {
   // Telemetry state — collected silently, never shown in UI
   const [inputCorrections, setInputCorrections] = useState(0)
   const firstFocusAt = useRef<number | null>(null)
+  // Page load time approximates link click — both timestamps are client-side to avoid clock skew
+  const pageLoadAt = useRef<number>(Date.now())
 
   useEffect(() => {
     // Capture ?ref=[CODE] from URL
@@ -62,22 +64,12 @@ function SignupForm() {
       formData.append('referralCode', referralCode)
     }
 
-    // Bundle telemetry into form data
-    const linkClickAt = searchParams.get('lca')
-    const submitAt = new Date().toISOString()
-    const formFillMs = firstFocusAt.current !== null ? Date.now() - firstFocusAt.current : 0
+    // Bundle telemetry into form data — all timestamps are client-side to avoid clock skew
+    const now = Date.now()
+    const formFillMs = firstFocusAt.current !== null ? now - firstFocusAt.current : 0
     const telemetry = JSON.stringify({
-      link_click_at: (() => {
-        if (!linkClickAt) return null
-        try {
-          const ms = Number(linkClickAt)
-          if (Number.isNaN(ms)) return null
-          return new Date(ms).toISOString()
-        } catch {
-          return null
-        }
-      })(),
-      signup_submit_at: submitAt,
+      link_click_at: new Date(pageLoadAt.current).toISOString(),
+      signup_submit_at: new Date(now).toISOString(),
       form_fill_ms: formFillMs,
       input_corrections: inputCorrections,
     })
