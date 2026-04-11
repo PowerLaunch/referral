@@ -215,13 +215,19 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
       // Check gameplay standard deviation
       const { data: gameplay, error: gpError } = await adminClient
         .from('gameplay_sessions')
-        .select('total_minutes')
+        .select('user_id, total_minutes')
         .in('user_id', refereeIds)
         .limit(10000)
 
       if (gpError) continue
 
-      const minutes = (gameplay ?? []).map((g) => Math.max(0, (g.total_minutes as number) ?? 0))
+      // Include referees without gameplay_sessions rows as 0 minutes.
+      // gameplay_sessions has a unique constraint on user_id, so missing rows = no gameplay.
+      const gameplayMap = new Map<string, number>()
+      for (const g of gameplay ?? []) {
+        gameplayMap.set(g.user_id as string, Math.max(0, (g.total_minutes as number) ?? 0))
+      }
+      const minutes = refereeIds.map((id) => gameplayMap.get(id) ?? 0)
       let stdev = 0
       if (minutes.length >= 2) {
         const mean = minutes.reduce((a, b) => a + b, 0) / minutes.length
@@ -344,7 +350,10 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
     const nodesToProcess = allNodes.slice(0, 500)
 
     for (const startNode of nodesToProcess) {
-      // BFS to find cycles back to startNode, max depth 8
+      // BFS to find cycles back to startNode, max depth 8.
+      // Queue size is bounded to prevent combinatorial explosion on high-degree nodes
+      // (e.g., a referrer with 20+ referees could generate O(d^7) entries without a cap).
+      const MAX_QUEUE_SIZE = 10_000
       const queue: Array<{ node: string; path: string[] }> = [{ node: startNode, path: [startNode] }]
 
       while (queue.length > 0) {
@@ -397,7 +406,7 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
             }
 
             results.push({ pattern_type: 'BIPARTITE', user_ids: cycleSorted, details: detailsObj, severity })
-          } else if (!current.path.includes(neighbor) && current.path.length < 8) {
+          } else if (!current.path.includes(neighbor) && current.path.length < 8 && queue.length < MAX_QUEUE_SIZE) {
             queue.push({ node: neighbor, path: [...current.path, neighbor] })
           }
         }
@@ -455,17 +464,24 @@ export async function detectDisconnectedCliques(adminClient: SupabaseClient): Pr
     // Filter to components of size 3-8
     const smallComponents = components.filter((c) => c.length >= 3 && c.length <= 8)
 
+    const ninetyDaysAgoClique = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+
     for (const component of smallComponents) {
       // Check if ALL referral edges involving these users are internal (no external connections).
-      // Compare total edges touching the group vs edges fully within the group.
+      // Must match the same status + date filters used to build the graph from fetchRecentEdges,
+      // otherwise historical/voided referrals outside the group cause false negatives.
       const { count: totalEdges, error: totalErr } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
+        .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+        .gt('created_at', ninetyDaysAgoClique)
         .or(`referrer_id.in.(${component.join(',')}),referee_id.in.(${component.join(',')})`)
 
       const { count: internalEdges, error: intErr } = await adminClient
         .from('referrals')
         .select('*', { count: 'exact', head: true })
+        .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+        .gt('created_at', ninetyDaysAgoClique)
         .in('referrer_id', component)
         .in('referee_id', component)
 
@@ -676,7 +692,11 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
           continue
         }
 
-        for (const userId of [...referrerIds, ...refIds]) {
+        // Deduplicate user IDs — a user can appear in both referrerIds and refIds,
+        // and refIds can have duplicates from multiple fingerprint/IP rows per user.
+        // Without dedup, adjustTrustScore applies the additive delta multiple times.
+        const uniqueUserIds = [...new Set([...referrerIds, ...refIds])]
+        for (const userId of uniqueUserIds) {
           await insertFraudFlag(adminClient, userId, 'R16_FAN_CONVERGE', severity, detailsObj)
           await safeAdjustTrust(adminClient, userId, trustDelta, 'fan_converge_fingerprint', 'R16_FAN_CONVERGE')
         }
@@ -739,7 +759,9 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
           continue
         }
 
-        for (const userId of [...referrerIds, ...refIds]) {
+        // Deduplicate — same reason as fingerprint block above
+        const uniqueIpUserIds = [...new Set([...referrerIds, ...refIds])]
+        for (const userId of uniqueIpUserIds) {
           await insertFraudFlag(adminClient, userId, 'R16_FAN_CONVERGE', severity, detailsObj)
           await safeAdjustTrust(adminClient, userId, trustDelta, 'fan_converge_ip', 'R16_FAN_CONVERGE')
         }
