@@ -105,6 +105,40 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 REVOKE EXECUTE ON FUNCTION public.function_name() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.function_name() TO service_role;
 ```
+### 4.3.1 Advisory Lock RPC Template
+
+When a check-then-act pattern exists (read value, check condition, write), both
+steps must be inside a single RPC function with an advisory lock to prevent
+TOCTOU race conditions. BugBot flags these as MEDIUM severity.
+
+Template:
+```sql
+CREATE OR REPLACE FUNCTION public.do_something_atomic(
+  p_user_id uuid,
+  p_param text
+)
+RETURNS jsonb AS $$
+DECLARE
+  v_result jsonb;
+  v_lock_key bigint;
+BEGIN
+  v_lock_key := ('x' || left(replace(p_user_id::text, '-', ''), 15))::bit(64)::bigint;
+  PERFORM pg_advisory_xact_lock(v_lock_key);
+
+  -- Check + act inside the lock
+  -- SELECT ... INTO ... FOR UPDATE if working with a specific row
+  -- INSERT / UPDATE logic here
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE EXECUTE ON FUNCTION public.do_something_atomic(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.do_something_atomic(uuid, text) TO service_role;
+```
+
+When the RPC errors, the caller must implement a fail-open fallback (direct INSERT)
+so the operation is not silently lost. Log RPC failures for investigation.
 
 The `SET search_path = public` prevents search path injection attacks.
 The REVOKE/GRANT ensures only server-side admin client can call the function.
