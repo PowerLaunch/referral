@@ -131,8 +131,8 @@ async function logVipException(
   }
 }
 
-/** Fetch all referral edges from last 90 days */
-async function fetchRecentEdges(adminClient: SupabaseClient): Promise<ReferralEdge[]> {
+/** Fetch all referral edges from last 90 days. Exported so the cron can call once and share. */
+export async function fetchRecentEdges(adminClient: SupabaseClient): Promise<ReferralEdge[]> {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
   const { data, error } = await adminClient
     .from('referrals')
@@ -283,10 +283,10 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
 // FUNCTION B: Bipartite Swap Detection
 // =============================================================================
 
-export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise<PatternResult[]> {
+export async function detectBipartiteSwaps(adminClient: SupabaseClient, cachedEdges?: ReferralEdge[]): Promise<PatternResult[]> {
   const results: PatternResult[] = []
   try {
-    const edges = await fetchRecentEdges(adminClient)
+    const edges = cachedEdges ?? await fetchRecentEdges(adminClient)
     if (edges.length === 0) return []
 
     // Build adjacency map (directed)
@@ -356,10 +356,13 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
       // Queue size is bounded to prevent combinatorial explosion on high-degree nodes
       // (e.g., a referrer with 20+ referees could generate O(d^7) entries without a cap).
       const MAX_QUEUE_SIZE = 10_000
+      // Use index pointer instead of shift() to avoid O(n) re-indexing per dequeue
       const queue: Array<{ node: string; path: string[] }> = [{ node: startNode, path: [startNode] }]
+      let queueHead = 0
 
-      while (queue.length > 0) {
-        const current = queue.shift()!
+      while (queueHead < queue.length) {
+        const current = queue[queueHead]!
+        queueHead++
         if (current.path.length > 8) continue
 
         const neighbors = adjMap.get(current.node)
@@ -424,10 +427,10 @@ export async function detectBipartiteSwaps(adminClient: SupabaseClient): Promise
 // FUNCTION C: Disconnected Clique Detection
 // =============================================================================
 
-export async function detectDisconnectedCliques(adminClient: SupabaseClient): Promise<PatternResult[]> {
+export async function detectDisconnectedCliques(adminClient: SupabaseClient, cachedEdges?: ReferralEdge[]): Promise<PatternResult[]> {
   const results: PatternResult[] = []
   try {
-    const edges = await fetchRecentEdges(adminClient)
+    const edges = cachedEdges ?? await fetchRecentEdges(adminClient)
     if (edges.length === 0) return []
 
     // Build undirected adjacency map

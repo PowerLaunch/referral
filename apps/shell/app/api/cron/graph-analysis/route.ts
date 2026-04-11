@@ -1,6 +1,7 @@
 // Graph topology analysis cron: detects referral network fraud patterns.
 // Runs every 6 hours via Vercel Cron. Protected by authorization Bearer token.
-// Each detection function runs independently — one failure does not abort the batch.
+// Each detection function has internal try/catch and returns [] on error,
+// so one function's failure does not abort the others.
 
 import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -10,6 +11,7 @@ import {
   detectDisconnectedCliques,
   detectFanOutConverge,
   detectGen2Velocity,
+  fetchRecentEdges,
 } from '@referral/api/graphAnalysis'
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import * as Sentry from '@sentry/nextjs'
@@ -33,10 +35,14 @@ export async function GET(request: NextRequest): Promise<Response> {
     const adminClient = createAdminClient()
     const startTime = Date.now()
 
+    // Fetch referral edges once and share with bipartite + clique detectors
+    // to avoid redundant 50k-row queries per function.
+    const edges = await fetchRecentEdges(adminClient)
+
     // Run detection functions in sequence to avoid DB contention
     const starResults = await detectStarClusters(adminClient)
-    const bipartiteResults = await detectBipartiteSwaps(adminClient)
-    const cliqueResults = await detectDisconnectedCliques(adminClient)
+    const bipartiteResults = await detectBipartiteSwaps(adminClient, edges)
+    const cliqueResults = await detectDisconnectedCliques(adminClient, edges)
     const fanConvergeResults = await detectFanOutConverge(adminClient)
     const gen2Results = await detectGen2Velocity(adminClient)
 
