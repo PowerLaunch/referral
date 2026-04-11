@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerE2 } from '@referral/api/email'
 import { getUserRiskScore, getRiskCategory } from '@referral/api/riskScore'
-import { getDynamicReferralCap } from '@referral/api/trustScore'
+import { adjustTrustScore, getDynamicReferralCap } from '@referral/api/trustScore'
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import * as Sentry from '@sentry/nextjs'
 
@@ -132,6 +132,139 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   for (const referral of pendingReferrals) {
     try {
+      // --- Criterion -2: Honeypot/Canary exclusion ---
+      // Honeypot referrers and canary referees exist only to flag the other party.
+      // Their referrals must never confirm or pay out — they are fraud detection tools.
+      // Fail closed: if trap state lookups fail, do not let the referral through
+      const { data: referrerTrapProfile, error: referrerTrapError } = await adminClient
+        .from('profiles')
+        .select('is_honeypot')
+        .eq('id', referral.referrer_id)
+        .single()
+
+      if (referrerTrapError) {
+        console.error(
+          `Referral ${referral.id}: failed to load referrer trap state:`,
+          referrerTrapError
+        )
+        errors++
+        continue
+      }
+
+      if (referrerTrapProfile?.is_honeypot) {
+        // Void the referral to prevent reprocessing on subsequent cron runs
+        const { error: voidError } = await adminClient
+          .from('referrals')
+          .update({ status: 'VOIDED' })
+          .eq('id', referral.id)
+          .eq('status', 'PENDING')
+        if (voidError) {
+          console.error(`Referral ${referral.id}: failed to void honeypot referral:`, voidError)
+          errors++
+          continue
+        }
+        console.log(
+          `Referral ${referral.id} voided: referrer is honeypot account`
+        )
+        skipped++
+        continue
+      }
+
+      const { data: refereeTrapProfile, error: refereeTrapError } = await adminClient
+        .from('profiles')
+        .select('is_canary')
+        .eq('id', referral.referee_id)
+        .single()
+
+      if (refereeTrapError) {
+        console.error(
+          `Referral ${referral.id}: failed to load referee trap state:`,
+          refereeTrapError
+        )
+        errors++
+        continue
+      }
+
+      if (refereeTrapProfile?.is_canary) {
+        // Flag the referrer — they referred a canary account, indicating a referral farm.
+        // This is where canary detection fires because canary accounts are admin-created
+        // and never go through the normal signup auth callback.
+        try {
+          const { data: referrerVipCheck } = await adminClient
+            .from('profiles')
+            .select('is_vip')
+            .eq('id', referral.referrer_id)
+            .single()
+          const referrerIsVip = referrerVipCheck?.is_vip === true
+
+          // fraud_flag insert is guarded by idx_fraud_flags_user_rule_day unique index.
+          // On reprocessing (e.g., if void below fails), duplicate 23505 errors are expected and ignored.
+          // The referral is voided after this block to prevent infinite reprocessing.
+          const severity = referrerIsVip ? 'INFO' : 'CRITICAL'
+          const { error: flagError } = await adminClient.from('fraud_flags').insert({
+            user_id: referral.referrer_id as string,
+            rule_triggered: 'R_HONEYPOT',
+            severity,
+            details: {
+              canary_account_id: referral.referee_id,
+              referrer_id: referral.referrer_id,
+            },
+          })
+          if (flagError) {
+            // Log but continue — the referral will still be voided below.
+            // Duplicate flag (23505) is expected on reprocessing.
+            if (flagError.code !== '23505') {
+              console.error(`Canary fraud_flag insert failed for referrer ${referral.referrer_id}:`, flagError)
+            }
+          }
+
+          try {
+            await adjustTrustScore(adminClient, referral.referrer_id as string, -200, 'canary_referral', 'R_HONEYPOT')
+          } catch (e: unknown) {
+            if ((e as { code?: string }).code !== '23505') {
+              console.error(`Canary trust adjustment failed for referrer ${referral.referrer_id}:`, e)
+            }
+          }
+
+          if (referrerIsVip) {
+            try {
+              await adminClient.from('admin_audit_logs').insert({
+                admin_user_id: null,
+                action: 'vip_honeypot_exception',
+                target_type: 'profile',
+                target_id: referral.referrer_id as string,
+                details: {
+                  canary_account_id: referral.referee_id,
+                  referrer_id: referral.referrer_id,
+                  severity_downgrade: 'CRITICAL → INFO',
+                },
+              })
+            } catch (auditErr) {
+              console.error('VIP canary audit log failed:', auditErr)
+            }
+          }
+        } catch (canaryErr) {
+          console.error(`Canary flagging error for referrer ${referral.referrer_id}:`, canaryErr)
+        }
+
+        // Void the referral to prevent reprocessing on subsequent cron runs
+        const { error: voidError } = await adminClient
+          .from('referrals')
+          .update({ status: 'VOIDED' })
+          .eq('id', referral.id)
+          .eq('status', 'PENDING')
+        if (voidError) {
+          console.error(`Referral ${referral.id}: failed to void canary referral:`, voidError)
+          errors++
+          continue
+        }
+        console.log(
+          `Referral ${referral.id} voided: referee is canary account (referrer flagged)`
+        )
+        skipped++
+        continue
+      }
+
       // --- Criterion -1: Influencer lock_bypass check ---
       // Influencer lock_bypass: skips payout_eligible_at but enforces all other confirmation criteria
       const lockPeriodPassed = new Date(referral.payout_eligible_at) <= new Date()

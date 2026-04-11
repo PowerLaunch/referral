@@ -91,11 +91,11 @@ export async function GET(request: NextRequest) {
         // limits each user to one referral row. Retroactive injection risk is accepted here
         // and will be addressed in Phase 4 by storing referral_code server-side at click time.
 
-        // Look up referrer by referral_code
+        // Look up referrer by referral_code (include is_honeypot for trap detection)
         const { data: referrerProfile, error: referrerError } =
           await adminClient
             .from('profiles')
-            .select('id')
+            .select('id, is_honeypot')
             .eq('referral_code', referralCode)
             .single()
 
@@ -179,6 +179,61 @@ export async function GET(request: NextRequest) {
                 console.error('Failed to update referral source:', sourceUpdateError.message)
               }
             }
+
+            // --- Honeypot detection ---
+            // If the referrer is a honeypot account, the new referee is flagged.
+            // The referral row is still created (to preserve evidence) but will never confirm.
+            if (referrerProfile.is_honeypot) {
+              try {
+                const honeypotSeverity = isVip ? 'INFO' : 'CRITICAL'
+                const { error: flagInsertError } = await adminClient.from('fraud_flags').insert({
+                  user_id: user.id,
+                  rule_triggered: 'R_HONEYPOT',
+                  severity: honeypotSeverity,
+                  details: {
+                    honeypot_code: referralCode,
+                    honeypot_profile_id: referrerProfile.id,
+                  },
+                })
+                if (flagInsertError && flagInsertError.code !== '23505') {
+                  console.error(`Honeypot fraud_flag insert failed for user ${user.id}:`, flagInsertError)
+                }
+
+                try {
+                  await adjustTrustScore(adminClient, user.id, -200, 'honeypot_signup', 'R_HONEYPOT')
+                } catch (e: unknown) {
+                  if ((e as { code?: string }).code !== '23505') {
+                    console.error(`Honeypot trust adjustment failed for user ${user.id}:`, e)
+                  }
+                }
+
+                if (isVip) {
+                  try {
+                    await adminClient.from('admin_audit_logs').insert({
+                      admin_user_id: null,
+                      action: 'vip_honeypot_exception',
+                      target_type: 'profile',
+                      target_id: user.id,
+                      details: {
+                        honeypot_code: referralCode,
+                        honeypot_profile_id: referrerProfile.id,
+                        severity_downgrade: 'CRITICAL → INFO',
+                      },
+                    })
+                  } catch (auditErr) {
+                    console.error('VIP honeypot audit log failed:', auditErr)
+                  }
+                }
+              } catch (honeypotErr) {
+                console.error(`Honeypot detection error for user ${user.id}:`, honeypotErr)
+              }
+            }
+
+            // Canary detection is NOT done here because canary accounts are created
+            // by the admin API (not via normal signup), so user.id in this callback
+            // always belongs to a real user — never a canary. Canary detection happens
+            // in the confirm-referrals cron where referral rows with canary referees
+            // are detected and the referrer is flagged.
           }
         }
       }

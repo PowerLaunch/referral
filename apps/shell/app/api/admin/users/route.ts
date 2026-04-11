@@ -13,14 +13,20 @@ export async function GET(request: NextRequest): Promise<Response> {
   const search = searchParams.get('search') ?? ''
   const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? '50')))
+  const showTestAccounts = searchParams.get('showTestAccounts') === 'true'
   const offset = (page - 1) * limit
 
   // Fetch profiles with subscription status
   let query = admin
     .from('profiles')
-    .select('id, email, trust_level, status, is_vip, payout_hold, created_at')
+    .select('id, email, trust_level, status, is_vip, payout_hold, is_honeypot, is_canary, created_at')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit) // fetch limit+1 to detect hasMore
+
+  // Filter out honeypot/canary test accounts by default
+  if (!showTestAccounts) {
+    query = query.eq('is_honeypot', false).eq('is_canary', false)
+  }
 
   if (search.trim()) {
     query = query.ilike('email', `%${search.trim()}%`)
@@ -87,6 +93,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     status: p.status,
     is_vip: p.is_vip,
     payout_hold: p.payout_hold,
+    is_honeypot: p.is_honeypot,
+    is_canary: p.is_canary,
     subscription_status: subMap.get(p.id as string) ?? 'none',
     referral_count: refCountMap.get(p.id as string) ?? 0,
     risk_score: scoreMap.get(p.id as string) ?? 0,

@@ -11,6 +11,8 @@ interface UserRow {
   status: string
   is_vip: boolean
   payout_hold: boolean
+  is_honeypot: boolean
+  is_canary: boolean
   subscription_status: string
   referral_count: number
   risk_score: number
@@ -35,6 +37,7 @@ export default function UsersClient() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [showTestAccounts, setShowTestAccounts] = useState(false)
 
   const fetchUsers = useCallback(async (searchTerm: string, pageNum: number) => {
     setLoading(true)
@@ -44,6 +47,7 @@ export default function UsersClient() {
       if (searchTerm.trim()) params.set('search', searchTerm.trim())
       params.set('page', String(pageNum))
       params.set('limit', '50')
+      if (showTestAccounts) params.set('showTestAccounts', 'true')
 
       const res = await fetch(`/api/admin/users?${params.toString()}`)
       if (res.ok) {
@@ -58,11 +62,11 @@ export default function UsersClient() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [showTestAccounts])
 
   useEffect(() => {
     void fetchUsers(search, page)
-  }, [fetchUsers, page]) // eslint-disable-line react-hooks/exhaustive-deps -- search triggers only via handleSearch form submit
+  }, [fetchUsers, page, showTestAccounts]) // eslint-disable-line react-hooks/exhaustive-deps -- search triggers only via handleSearch form submit
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -74,21 +78,35 @@ export default function UsersClient() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">User Management</h1>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          type="text"
-          placeholder="Search by email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
-        />
-        <button
-          type="submit"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Search
-        </button>
-      </form>
+      <div className="flex items-center gap-4">
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Search by email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Search
+          </button>
+        </form>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={showTestAccounts}
+            onChange={(e) => {
+              setShowTestAccounts(e.target.checked)
+              setPage(1)
+            }}
+            className="rounded border-input"
+          />
+          Show test accounts
+        </label>
+      </div>
 
       {fetchError && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
@@ -142,6 +160,16 @@ export default function UsersClient() {
                         {user.payout_hold && (
                           <span className="ml-1 rounded bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-950/30">
                             HOLD
+                          </span>
+                        )}
+                        {user.is_honeypot && (
+                          <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/30">
+                            HONEYPOT
+                          </span>
+                        )}
+                        {user.is_canary && (
+                          <span className="ml-1 rounded bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-950/30">
+                            CANARY
                           </span>
                         )}
                       </td>
