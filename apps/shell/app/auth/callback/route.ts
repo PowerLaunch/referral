@@ -226,65 +226,11 @@ export async function GET(request: NextRequest) {
               }
             }
 
-            // --- Canary detection ---
-            // If the new user (referee) is a canary account, the referrer is flagged.
-            // Someone referring a canary account is likely running a referral farm.
-            try {
-              const { data: canaryCheck } = await adminClient
-                .from('profiles')
-                .select('is_canary')
-                .eq('id', user.id)
-                .single()
-
-              if (canaryCheck?.is_canary) {
-                // Fetch referrer VIP status for severity decision
-                const { data: referrerVipCheck } = await adminClient
-                  .from('profiles')
-                  .select('is_vip')
-                  .eq('id', referrerProfile.id)
-                  .single()
-                const referrerIsVip = referrerVipCheck?.is_vip === true
-
-                const canarySeverity = referrerIsVip ? 'INFO' : 'CRITICAL'
-                await adminClient.from('fraud_flags').insert({
-                  user_id: referrerProfile.id as string,
-                  rule_triggered: 'R_HONEYPOT',
-                  severity: canarySeverity,
-                  details: {
-                    canary_account_id: user.id,
-                    referrer_id: referrerProfile.id,
-                  },
-                })
-
-                try {
-                  await adjustTrustScore(adminClient, referrerProfile.id as string, -200, 'canary_referral', 'R_HONEYPOT')
-                } catch (e: unknown) {
-                  if ((e as { code?: string }).code !== '23505') {
-                    console.error(`Canary trust adjustment failed for referrer ${referrerProfile.id}:`, e)
-                  }
-                }
-
-                if (referrerIsVip) {
-                  try {
-                    await adminClient.from('admin_audit_logs').insert({
-                      admin_user_id: null,
-                      action: 'vip_honeypot_exception',
-                      target_type: 'profile',
-                      target_id: referrerProfile.id as string,
-                      details: {
-                        canary_account_id: user.id,
-                        referrer_id: referrerProfile.id,
-                        severity_downgrade: 'CRITICAL → INFO',
-                      },
-                    })
-                  } catch (auditErr) {
-                    console.error('VIP canary audit log failed:', auditErr)
-                  }
-                }
-              }
-            } catch (canaryErr) {
-              console.error(`Canary detection error for referrer ${referrerProfile.id}:`, canaryErr)
-            }
+            // Canary detection is NOT done here because canary accounts are created
+            // by the admin API (not via normal signup), so user.id in this callback
+            // always belongs to a real user — never a canary. Canary detection happens
+            // in the confirm-referrals cron where referral rows with canary referees
+            // are detected and the referrer is flagged.
           }
         }
       }

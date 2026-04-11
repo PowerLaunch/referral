@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { triggerE2 } from '@referral/api/email'
 import { getUserRiskScore, getRiskCategory } from '@referral/api/riskScore'
-import { getDynamicReferralCap } from '@referral/api/trustScore'
+import { adjustTrustScore, getDynamicReferralCap } from '@referral/api/trustScore'
 import { recordCronSuccess } from '@referral/api/cronHealth'
 import * as Sentry from '@sentry/nextjs'
 
@@ -156,8 +156,59 @@ export async function GET(request: NextRequest): Promise<Response> {
         .single()
 
       if (refereeProfile?.is_canary) {
+        // Flag the referrer — they referred a canary account, indicating a referral farm.
+        // This is where canary detection fires because canary accounts are admin-created
+        // and never go through the normal signup auth callback.
+        try {
+          const { data: referrerVipCheck } = await adminClient
+            .from('profiles')
+            .select('is_vip')
+            .eq('id', referral.referrer_id)
+            .single()
+          const referrerIsVip = referrerVipCheck?.is_vip === true
+
+          const severity = referrerIsVip ? 'INFO' : 'CRITICAL'
+          await adminClient.from('fraud_flags').insert({
+            user_id: referral.referrer_id as string,
+            rule_triggered: 'R_HONEYPOT',
+            severity,
+            details: {
+              canary_account_id: referral.referee_id,
+              referrer_id: referral.referrer_id,
+            },
+          })
+
+          try {
+            await adjustTrustScore(adminClient, referral.referrer_id as string, -200, 'canary_referral', 'R_HONEYPOT')
+          } catch (e: unknown) {
+            if ((e as { code?: string }).code !== '23505') {
+              console.error(`Canary trust adjustment failed for referrer ${referral.referrer_id}:`, e)
+            }
+          }
+
+          if (referrerIsVip) {
+            try {
+              await adminClient.from('admin_audit_logs').insert({
+                admin_user_id: null,
+                action: 'vip_honeypot_exception',
+                target_type: 'profile',
+                target_id: referral.referrer_id as string,
+                details: {
+                  canary_account_id: referral.referee_id,
+                  referrer_id: referral.referrer_id,
+                  severity_downgrade: 'CRITICAL → INFO',
+                },
+              })
+            } catch (auditErr) {
+              console.error('VIP canary audit log failed:', auditErr)
+            }
+          }
+        } catch (canaryErr) {
+          console.error(`Canary flagging error for referrer ${referral.referrer_id}:`, canaryErr)
+        }
+
         console.log(
-          `Referral ${referral.id} skipped: referee is canary account`
+          `Referral ${referral.id} skipped: referee is canary account (referrer flagged)`
         )
         skipped++
         continue
