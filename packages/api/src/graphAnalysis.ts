@@ -720,7 +720,8 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
         }
 
         if (hasVip) {
-          for (const userId of referrerIds) {
+          // Log VIP exception for ALL VIP users (referrers + referees), not just referrers
+          for (const userId of allIds) {
             const uVip = await isUserVip(adminClient, userId)
             if (uVip) await logVipException(adminClient, userId, 'FAN_CONVERGE', detailsObj)
           }
@@ -787,7 +788,8 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
         }
 
         if (hasVip) {
-          for (const userId of referrerIds) {
+          // Log VIP exception for ALL VIP users — consistent with fingerprint block
+          for (const userId of allIds) {
             const uVip = await isUserVip(adminClient, userId)
             if (uVip) await logVipException(adminClient, userId, 'FAN_CONVERGE', detailsObj)
           }
