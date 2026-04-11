@@ -151,7 +151,7 @@ export async function POST(request: Request): Promise<Response> {
 
         // Update the single gameplay_sessions row (upsert pattern)
         if (i === sessionCount - 1) {
-          await adminClient
+          const { error: seedWriteError } = await adminClient
             .from('gameplay_sessions')
             .upsert({
               user_id: userId,
@@ -159,6 +159,10 @@ export async function POST(request: Request): Promise<Response> {
               session_count: sessionCount,
               last_heartbeat_at: heartbeatAt.toISOString(),
             }, { onConflict: 'user_id' })
+
+          if (seedWriteError) {
+            throw seedWriteError
+          }
         }
       }
     } catch (seedErr) {

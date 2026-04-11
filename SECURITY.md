@@ -88,8 +88,9 @@ Fraud rules R1-R6 run every 15 minutes via `/api/cron/fraud-scan`. R7 fires in r
 - **Trigger (Canary)**: User refers a canary account (seeded by admin to detect referral farms)
 - **Action**: CRITICAL fraud_flag (rule: R_HONEYPOT) + trust score -200
 - **VIP Exception**: Severity downgraded to INFO (penalty still applied, no auto-freeze)
-- **Fires**: Real-time during signup (auth callback)
-- **Referral handling**: Referral row is created (preserves evidence) but will never confirm — cron skips honeypot referrers and canary referees
+- **Fires (Honeypot)**: Real-time during signup (auth callback)
+- **Fires (Canary)**: During `/api/cron/confirm-referrals` when a canary referee is detected
+- **Referral handling**: Referral row is created (preserves evidence) then voided by cron — honeypot/canary referrals never confirm or pay out
 - **Implemented in**: PR 10-F
 
 ### R17 — Red Source Attribution

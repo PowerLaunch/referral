@@ -135,27 +135,55 @@ export async function GET(request: NextRequest): Promise<Response> {
       // --- Criterion -2: Honeypot/Canary exclusion ---
       // Honeypot referrers and canary referees exist only to flag the other party.
       // Their referrals must never confirm or pay out — they are fraud detection tools.
-      const { data: referrerProfile } = await adminClient
+      // Fail closed: if trap state lookups fail, do not let the referral through
+      const { data: referrerTrapProfile, error: referrerTrapError } = await adminClient
         .from('profiles')
         .select('is_honeypot')
         .eq('id', referral.referrer_id)
         .single()
 
-      if (referrerProfile?.is_honeypot) {
+      if (referrerTrapError) {
+        console.error(
+          `Referral ${referral.id}: failed to load referrer trap state:`,
+          referrerTrapError
+        )
+        errors++
+        continue
+      }
+
+      if (referrerTrapProfile?.is_honeypot) {
+        // Void the referral to prevent reprocessing on subsequent cron runs
+        const { error: voidError } = await adminClient
+          .from('referrals')
+          .update({ status: 'VOIDED' })
+          .eq('id', referral.id)
+          .eq('status', 'PENDING')
+        if (voidError) {
+          console.error(`Referral ${referral.id}: failed to void honeypot referral:`, voidError)
+        }
         console.log(
-          `Referral ${referral.id} skipped: referrer is honeypot account`
+          `Referral ${referral.id} voided: referrer is honeypot account`
         )
         skipped++
         continue
       }
 
-      const { data: refereeProfile } = await adminClient
+      const { data: refereeTrapProfile, error: refereeTrapError } = await adminClient
         .from('profiles')
         .select('is_canary')
         .eq('id', referral.referee_id)
         .single()
 
-      if (refereeProfile?.is_canary) {
+      if (refereeTrapError) {
+        console.error(
+          `Referral ${referral.id}: failed to load referee trap state:`,
+          refereeTrapError
+        )
+        errors++
+        continue
+      }
+
+      if (refereeTrapProfile?.is_canary) {
         // Flag the referrer — they referred a canary account, indicating a referral farm.
         // This is where canary detection fires because canary accounts are admin-created
         // and never go through the normal signup auth callback.
@@ -207,8 +235,17 @@ export async function GET(request: NextRequest): Promise<Response> {
           console.error(`Canary flagging error for referrer ${referral.referrer_id}:`, canaryErr)
         }
 
+        // Void the referral to prevent reprocessing on subsequent cron runs
+        const { error: voidError } = await adminClient
+          .from('referrals')
+          .update({ status: 'VOIDED' })
+          .eq('id', referral.id)
+          .eq('status', 'PENDING')
+        if (voidError) {
+          console.error(`Referral ${referral.id}: failed to void canary referral:`, voidError)
+        }
         console.log(
-          `Referral ${referral.id} skipped: referee is canary account (referrer flagged)`
+          `Referral ${referral.id} voided: referee is canary account (referrer flagged)`
         )
         skipped++
         continue
