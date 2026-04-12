@@ -255,7 +255,7 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
       if (stdev >= 2.0) continue
 
       // Pattern matches — check idempotency then flag
-      const allIds = [referrerId, ...refereeIds]
+      const allIds = [referrerId, ...refereeIds].sort()
       if (await hasExistingResult(adminClient, 'STAR_CLUSTER', allIds)) continue
 
       const severity = vip ? 'INFO' : 'WARNING'
@@ -864,7 +864,7 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
       if (!windowMatch) continue
 
       // Pattern matches
-      const allIds = [referrerId, ...refereesWithReferrals]
+      const allIds = [referrerId, ...refereesWithReferrals].sort()
       if (await hasExistingResult(adminClient, 'GEN2_VELOCITY', allIds)) continue
 
       const severity = vip ? 'INFO' : 'WARNING'
