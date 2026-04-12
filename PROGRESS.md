@@ -222,3 +222,4 @@ Complete these before starting PR 5-A:
 | 2026-04-12 | feat/graph-topology | PR #37 merged | feat: referral graph topology analysis (Phase 10-E, R16) |
 | 2026-04-12 | feat/admin-users-disputes | PR #38 IN PROGRESS | feat: admin user management + disputes (Phase 7-C + 7-H) |
 | 2026-04-12 | feat/admin-users-disputes | PR #38 merged | feat: admin user management + disputes enhancements (7-C + 7-H) |
+| 2026-04-12 | feat/admin-influencers | PR #39 IN PROGRESS | feat: influencer code management (Phase 7-G) |
