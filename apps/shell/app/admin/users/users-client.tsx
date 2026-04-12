@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { riskColor } from './utils'
 
@@ -8,14 +8,18 @@ interface UserRow {
   id: string
   email: string
   trust_level: string
+  trust_score: number
+  trust_tier: string
   status: string
   is_vip: boolean
   payout_hold: boolean
+  manual_payout_approval: boolean
   is_honeypot: boolean
   is_canary: boolean
   subscription_status: string
   referral_count: number
   risk_score: number
+  fraud_flag_count: number
   created_at: string
 }
 
@@ -30,6 +34,17 @@ function trustBadge(level: string): { text: string; className: string } {
   }
 }
 
+function tierLabel(tier: string): string {
+  switch (tier) {
+    case 'PROBATION': return 'Probation'
+    case 'TRUSTED': return 'Trusted'
+    case 'VETERAN': return 'Veteran'
+    default: return 'Standard'
+  }
+}
+
+type SortField = 'created_at' | 'trust_score' | 'trust_level'
+
 export default function UsersClient() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,6 +53,10 @@ export default function UsersClient() {
   const [hasMore, setHasMore] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [showTestAccounts, setShowTestAccounts] = useState(false)
+  const [sortBy, setSortBy] = useState<SortField>('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  // Track the last submitted search to avoid sending uncommitted input on sort/filter changes
+  const appliedSearch = useRef('')
 
   const fetchUsers = useCallback(async (searchTerm: string, pageNum: number) => {
     setLoading(true)
@@ -47,6 +66,8 @@ export default function UsersClient() {
       if (searchTerm.trim()) params.set('search', searchTerm.trim())
       params.set('page', String(pageNum))
       params.set('limit', '50')
+      params.set('sortBy', sortBy)
+      params.set('sortOrder', sortOrder)
       if (showTestAccounts) params.set('showTestAccounts', 'true')
 
       const res = await fetch(`/api/admin/users?${params.toString()}`)
@@ -62,16 +83,32 @@ export default function UsersClient() {
     } finally {
       setLoading(false)
     }
-  }, [showTestAccounts])
+  }, [showTestAccounts, sortBy, sortOrder])
 
   useEffect(() => {
-    void fetchUsers(search, page)
-  }, [fetchUsers, page, showTestAccounts]) // eslint-disable-line react-hooks/exhaustive-deps -- search triggers only via handleSearch form submit
+    void fetchUsers(appliedSearch.current, page)
+  }, [fetchUsers, page, sortBy, sortOrder, showTestAccounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
+    appliedSearch.current = search
     setPage(1)
     void fetchUsers(search, 1)
+  }
+
+  function toggleSort(field: SortField) {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(field)
+      setSortOrder('desc')
+    }
+    setPage(1)
+  }
+
+  function sortIndicator(field: SortField): string {
+    if (sortBy !== field) return ''
+    return sortOrder === 'asc' ? ' ^' : ' v'
   }
 
   return (
@@ -120,23 +157,39 @@ export default function UsersClient() {
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Risk Score</th>
-                <th className="px-4 py-3 font-medium">Trust Level</th>
+                <th className="px-4 py-3 font-medium">Risk</th>
+                <th
+                  className="cursor-pointer px-4 py-3 font-medium hover:text-foreground"
+                  onClick={() => toggleSort('trust_level')}
+                >
+                  Trust Level{sortIndicator('trust_level')}
+                </th>
+                <th
+                  className="cursor-pointer px-4 py-3 font-medium hover:text-foreground"
+                  onClick={() => toggleSort('trust_score')}
+                >
+                  Score / Tier{sortIndicator('trust_score')}
+                </th>
                 <th className="px-4 py-3 font-medium">Subscription</th>
                 <th className="px-4 py-3 font-medium">Referrals</th>
-                <th className="px-4 py-3 font-medium">Created</th>
+                <th
+                  className="cursor-pointer px-4 py-3 font-medium hover:text-foreground"
+                  onClick={() => toggleSort('created_at')}
+                >
+                  Created{sortIndicator('created_at')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Loading...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No users found
                   </td>
                 </tr>
@@ -175,10 +228,21 @@ export default function UsersClient() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={riskColor(user.risk_score)}>{user.risk_score}</span>
+                        {user.fraud_flag_count > 0 && (
+                          <span className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                            {user.fraud_flag_count}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`rounded px-2 py-0.5 text-xs font-medium ${badge.className}`}>
                           {badge.text}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs">{user.trust_score}</span>
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {tierLabel(user.trust_tier)}
                         </span>
                       </td>
                       <td className="px-4 py-3">

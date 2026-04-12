@@ -27,7 +27,8 @@ export async function toggleVip(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  // Supabase JS does not throw on insert failure — must check returned error
+  const { error: auditErr } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'toggle_vip',
     target_type: 'user',
@@ -36,6 +37,7 @@ export async function toggleVip(
     after_value: JSON.stringify({ is_vip: newValue }),
     details: { toggled_to: newValue },
   })
+  if (auditErr) console.error('Audit log failed for toggle_vip:', auditErr)
 
   return { ok: true }
 }
@@ -64,7 +66,7 @@ export async function freezeAccount(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr2 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'freeze_account',
     target_type: 'user',
@@ -72,6 +74,7 @@ export async function freezeAccount(
     before_value: JSON.stringify({ trust_level: beforeTrust }),
     after_value: JSON.stringify({ trust_level: 'BANNED' }),
   })
+  if (auditErr2) console.error('Audit log failed for freeze_account:', auditErr2)
 
   await triggerE5(userId)
 
@@ -102,7 +105,7 @@ export async function unfreezeAccount(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr3 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'unfreeze_account',
     target_type: 'user',
@@ -110,6 +113,7 @@ export async function unfreezeAccount(
     before_value: JSON.stringify({ trust_level: beforeTrust }),
     after_value: JSON.stringify({ trust_level: 'CLEAN' }),
   })
+  if (auditErr3) console.error('Audit log failed for unfreeze_account:', auditErr3)
 
   return { ok: true }
 }
@@ -138,7 +142,7 @@ export async function flagSuspicious(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr4 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'flag_suspicious',
     target_type: 'user',
@@ -146,6 +150,7 @@ export async function flagSuspicious(
     before_value: JSON.stringify({ trust_level: beforeTrust }),
     after_value: JSON.stringify({ trust_level: 'SUSPICIOUS' }),
   })
+  if (auditErr4) console.error('Audit log failed for flag_suspicious:', auditErr4)
 
   return { ok: true }
 }
@@ -174,7 +179,7 @@ export async function unflagSuspicious(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr5 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'unflag_suspicious',
     target_type: 'user',
@@ -182,6 +187,44 @@ export async function unflagSuspicious(
     before_value: JSON.stringify({ trust_level: beforeTrust }),
     after_value: JSON.stringify({ trust_level: 'CLEAN' }),
   })
+  if (auditErr5) console.error('Audit log failed for unflag_suspicious:', auditErr5)
+
+  return { ok: true }
+}
+
+export async function toggleManualPayout(
+  userId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('manual_payout_approval')
+    .eq('id', userId)
+    .single()
+
+  if (!profile) return { ok: false, error: 'User not found' }
+
+  const newValue = !(profile.manual_payout_approval as boolean)
+
+  const { error } = await admin
+    .from('profiles')
+    .update({ manual_payout_approval: newValue })
+    .eq('id', userId)
+
+  if (error) return { ok: false, error: error.message }
+
+  const { error: auditErr6 } = await admin.from('admin_audit_logs').insert({
+    admin_user_id: adminId,
+    action: 'toggle_manual_payout',
+    target_type: 'user',
+    target_id: userId,
+    before_value: JSON.stringify({ manual_payout_approval: !newValue }),
+    after_value: JSON.stringify({ manual_payout_approval: newValue }),
+    details: { toggled_to: newValue },
+  })
+  if (auditErr6) console.error('Audit log failed for toggle_manual_payout:', auditErr6)
 
   return { ok: true }
 }
@@ -209,7 +252,7 @@ export async function togglePayoutHold(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr7 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'toggle_payout_hold',
     target_type: 'user',
@@ -218,6 +261,7 @@ export async function togglePayoutHold(
     after_value: JSON.stringify({ payout_hold: newValue }),
     details: { toggled_to: newValue },
   })
+  if (auditErr7) console.error('Audit log failed for toggle_payout_hold:', auditErr7)
 
   return { ok: true }
 }
