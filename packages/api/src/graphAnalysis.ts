@@ -663,6 +663,66 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
 
     const processedSets = new Set<string>()
 
+    // Shared helper for processing convergence groups (fingerprint or IP).
+    // Extracted to eliminate ~130 lines of duplication between fingerprint and IP blocks.
+    async function processConvergenceGroups(
+      groups: Map<string, string[]>,
+      signalType: 'fingerprint' | 'ip_range',
+      trustReasonSuffix: string
+    ): Promise<void> {
+      for (const [signalValue, refIds] of groups) {
+        if (refIds.length < 2) continue
+        const referrerIds = [...new Set(refIds.map((id) => refereeToReferrer.get(id)).filter((r): r is string => r !== undefined))]
+        if (referrerIds.length < 3) continue
+
+        const allIds = [...new Set([...referrerIds, ...refIds])].sort()
+        const key = JSON.stringify(allIds)
+        if (processedSets.has(key)) continue
+        processedSets.add(key)
+
+        if (await hasExistingResult(adminClient, 'FAN_CONVERGE', allIds)) continue
+
+        const hasVip = await anyUserVip(adminClient, allIds)
+        const severity = hasVip ? 'INFO' : 'CRITICAL'
+        const trustDelta = hasVip ? -30 : -300
+        const uniqueRefIds = [...new Set(refIds)]
+        const detailsObj = {
+          converging_signal_type: signalType,
+          converging_value: signalValue,
+          referrer_count: referrerIds.length,
+          referee_count: uniqueRefIds.length,
+          referrer_ids: referrerIds,
+          referee_ids: uniqueRefIds,
+          has_vip_member: hasVip,
+        }
+
+        const { error: insertErr } = await adminClient.from('graph_analysis_results').insert({
+          pattern_type: 'FAN_CONVERGE',
+          user_ids: allIds,
+          details: detailsObj,
+          severity,
+        })
+        if (insertErr) {
+          console.error(`Fan converge ${signalType} result insert failed:`, insertErr)
+          continue
+        }
+
+        for (const userId of allIds) {
+          await insertFraudFlag(adminClient, userId, 'R16_FAN_CONVERGE', severity, detailsObj)
+          await safeAdjustTrust(adminClient, userId, trustDelta, `fan_converge_${trustReasonSuffix}`, 'R16_FAN_CONVERGE')
+        }
+
+        if (hasVip) {
+          for (const userId of allIds) {
+            const uVip = await isUserVip(adminClient, userId)
+            if (uVip) await logVipException(adminClient, userId, 'FAN_CONVERGE', detailsObj)
+          }
+        }
+
+        results.push({ pattern_type: 'FAN_CONVERGE', user_ids: allIds, details: detailsObj, severity })
+      }
+    }
+
     // Group by fingerprint
     if (fpData && fpData.length > 0) {
       const fpGroups = new Map<string, string[]>()
@@ -673,62 +733,7 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
         if (!fpGroups.has(hash)) fpGroups.set(hash, [])
         fpGroups.get(hash)!.push(userId)
       }
-
-      for (const [hash, refIds] of fpGroups) {
-        if (refIds.length < 2) continue
-        const referrerIds = [...new Set(refIds.map((id) => refereeToReferrer.get(id)).filter((r): r is string => r !== undefined))]
-        if (referrerIds.length < 3) continue
-
-        // Deduplicate allIds — refIds can contain duplicates from multiple fingerprint rows per user
-        const allIds = [...new Set([...referrerIds, ...refIds])].sort()
-        const key = JSON.stringify(allIds)
-        if (processedSets.has(key)) continue
-        processedSets.add(key)
-
-        if (await hasExistingResult(adminClient, 'FAN_CONVERGE', allIds)) continue
-
-        // Check ALL involved users for VIP status (not just referrers) — severity applies to everyone
-        const hasVip = await anyUserVip(adminClient, allIds)
-        const severity = hasVip ? 'INFO' : 'CRITICAL'
-        const trustDelta = hasVip ? -30 : -300
-        const uniqueRefIds = [...new Set(refIds)]
-        const detailsObj = {
-          converging_signal_type: 'fingerprint',
-          converging_value: hash,
-          referrer_count: referrerIds.length,
-          referee_count: uniqueRefIds.length,
-          referrer_ids: referrerIds,
-          referee_ids: refIds,
-          has_vip_member: hasVip,
-        }
-
-        const { error: fpInsertErr } = await adminClient.from('graph_analysis_results').insert({
-          pattern_type: 'FAN_CONVERGE',
-          user_ids: allIds,
-          details: detailsObj,
-          severity,
-        })
-        if (fpInsertErr) {
-          console.error('Fan converge result insert failed:', fpInsertErr)
-          continue
-        }
-
-        // allIds is already deduplicated above — safe to iterate directly
-        for (const userId of allIds) {
-          await insertFraudFlag(adminClient, userId, 'R16_FAN_CONVERGE', severity, detailsObj)
-          await safeAdjustTrust(adminClient, userId, trustDelta, 'fan_converge_fingerprint', 'R16_FAN_CONVERGE')
-        }
-
-        if (hasVip) {
-          // Log VIP exception for ALL VIP users (referrers + referees), not just referrers
-          for (const userId of allIds) {
-            const uVip = await isUserVip(adminClient, userId)
-            if (uVip) await logVipException(adminClient, userId, 'FAN_CONVERGE', detailsObj)
-          }
-        }
-
-        results.push({ pattern_type: 'FAN_CONVERGE', user_ids: allIds, details: detailsObj, severity })
-      }
+      await processConvergenceGroups(fpGroups, 'fingerprint', 'fingerprint')
     }
 
     // Group by IP range
@@ -741,62 +746,7 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
         if (!ipGroups.has(range)) ipGroups.set(range, [])
         ipGroups.get(range)!.push(userId)
       }
-
-      for (const [range, refIds] of ipGroups) {
-        if (refIds.length < 2) continue
-        const referrerIds = [...new Set(refIds.map((id) => refereeToReferrer.get(id)).filter((r): r is string => r !== undefined))]
-        if (referrerIds.length < 3) continue
-
-        // Deduplicate allIds — refIds can contain duplicates from multiple IP rows per user
-        const allIds = [...new Set([...referrerIds, ...refIds])].sort()
-        const key = JSON.stringify(allIds)
-        if (processedSets.has(key)) continue
-        processedSets.add(key)
-
-        if (await hasExistingResult(adminClient, 'FAN_CONVERGE', allIds)) continue
-
-        // Check ALL involved users for VIP status — consistent with fingerprint block above
-        const hasVip = await anyUserVip(adminClient, allIds)
-        const severity = hasVip ? 'INFO' : 'CRITICAL'
-        const trustDelta = hasVip ? -30 : -300
-        const uniqueRefIds = [...new Set(refIds)]
-        const detailsObj = {
-          converging_signal_type: 'ip_range',
-          converging_value: range,
-          referrer_count: referrerIds.length,
-          referee_count: uniqueRefIds.length,
-          referrer_ids: referrerIds,
-          referee_ids: refIds,
-          has_vip_member: hasVip,
-        }
-
-        const { error: ipInsertErr } = await adminClient.from('graph_analysis_results').insert({
-          pattern_type: 'FAN_CONVERGE',
-          user_ids: allIds,
-          details: detailsObj,
-          severity,
-        })
-        if (ipInsertErr) {
-          console.error('Fan converge IP result insert failed:', ipInsertErr)
-          continue
-        }
-
-        // allIds is already deduplicated above — safe to iterate directly
-        for (const userId of allIds) {
-          await insertFraudFlag(adminClient, userId, 'R16_FAN_CONVERGE', severity, detailsObj)
-          await safeAdjustTrust(adminClient, userId, trustDelta, 'fan_converge_ip', 'R16_FAN_CONVERGE')
-        }
-
-        if (hasVip) {
-          // Log VIP exception for ALL VIP users — consistent with fingerprint block
-          for (const userId of allIds) {
-            const uVip = await isUserVip(adminClient, userId)
-            if (uVip) await logVipException(adminClient, userId, 'FAN_CONVERGE', detailsObj)
-          }
-        }
-
-        results.push({ pattern_type: 'FAN_CONVERGE', user_ids: allIds, details: detailsObj, severity })
-      }
+      await processConvergenceGroups(ipGroups, 'ip_range', 'ip')
     }
   } catch (err) {
     console.error('detectFanOutConverge failed:', err)
