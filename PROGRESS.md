@@ -220,3 +220,4 @@ Complete these before starting PR 5-A:
 | 2026-04-11 | feat/honeypot | PR #36 merged | feat: honeypot & canary fraud detection (Phase 10-F) |
 | 2026-04-11 | feat/graph-topology | PR #37 IN PROGRESS | feat: referral graph topology analysis (Phase 10-E) |
 | 2026-04-12 | feat/graph-topology | PR #37 merged | feat: referral graph topology analysis (Phase 10-E, R16) |
+| 2026-04-12 | feat/admin-users-disputes | PR #38 IN PROGRESS | feat: admin user management + disputes (Phase 7-C + 7-H) |

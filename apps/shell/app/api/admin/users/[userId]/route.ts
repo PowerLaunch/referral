@@ -2,6 +2,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '../../requireAdmin'
 import { NextRequest } from 'next/server'
 import { severityPoints } from '../risk-utils'
+import { z } from 'zod'
+
+const ParamSchema = z.object({ userId: z.string().uuid() })
 
 export async function GET(
   _request: NextRequest,
@@ -11,8 +14,8 @@ export async function GET(
   if (auth instanceof Response) return auth
 
   const { userId } = await params
-
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+  const parsed = ParamSchema.safeParse({ userId })
+  if (!parsed.success) {
     return Response.json({ error: 'Invalid ID format' }, { status: 400 })
   }
 
@@ -21,7 +24,7 @@ export async function GET(
   // Fetch profile
   const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id, email, trust_level, status, is_vip, payout_hold, verified_kyc_hash, created_at')
+    .select('id, email, trust_level, trust_score, trust_tier, status, is_vip, payout_hold, manual_payout_approval, verified_kyc_hash, is_honeypot, is_canary, created_at')
     .eq('id', userId)
     .single()
 
@@ -32,7 +35,7 @@ export async function GET(
   // Fetch referrals (as referrer or referee)
   const { data: referrals } = await admin
     .from('referrals')
-    .select('id, referrer_id, referee_id, status, referral_code, created_at, confirmed_at')
+    .select('id, referrer_id, referee_id, status, referral_code, created_at, confirmed_at, payout_eligible_at')
     .or(`referrer_id.eq.${userId},referee_id.eq.${userId}`)
     .order('created_at', { ascending: false })
     .limit(100)
@@ -51,12 +54,27 @@ export async function GET(
     .select('id, amount, type, reason, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(50)
+
+  // Fetch trust score events
+  const { data: trustScoreEvents } = await admin
+    .from('trust_score_events')
+    .select('id, delta, reason, rule_triggered, score_before, score_after, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  // Fetch gameplay
+  const { data: gameplay } = await admin
+    .from('gameplay_sessions')
+    .select('total_minutes, session_count, last_heartbeat_at, updated_at')
+    .eq('user_id', userId)
+    .maybeSingle()
 
   // Fetch subscription
   const { data: subscription } = await admin
     .from('subscriptions')
-    .select('status, created_at')
+    .select('status, created_at, current_period_end')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -78,6 +96,8 @@ export async function GET(
     referrals: referrals ?? [],
     fraudFlags: fraudFlags ?? [],
     creditTransactions: creditTransactions ?? [],
+    trustScoreEvents: trustScoreEvents ?? [],
+    gameplay: gameplay ?? null,
     riskScore,
   })
 }

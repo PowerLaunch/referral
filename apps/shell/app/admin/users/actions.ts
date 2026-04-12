@@ -186,6 +186,46 @@ export async function unflagSuspicious(
   return { ok: true }
 }
 
+export async function toggleManualPayout(
+  userId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const adminId = await requireAdmin()
+  const admin = createAdminClient()
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('manual_payout_approval')
+    .eq('id', userId)
+    .single()
+
+  if (!profile) return { ok: false, error: 'User not found' }
+
+  const newValue = !(profile.manual_payout_approval as boolean)
+
+  const { error } = await admin
+    .from('profiles')
+    .update({ manual_payout_approval: newValue })
+    .eq('id', userId)
+
+  if (error) return { ok: false, error: error.message }
+
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'toggle_manual_payout',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ manual_payout_approval: !newValue }),
+      after_value: JSON.stringify({ manual_payout_approval: newValue }),
+      details: { toggled_to: newValue },
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for toggle_manual_payout:', auditErr)
+  }
+
+  return { ok: true }
+}
+
 export async function togglePayoutHold(
   userId: string
 ): Promise<{ ok: boolean; error?: string }> {
