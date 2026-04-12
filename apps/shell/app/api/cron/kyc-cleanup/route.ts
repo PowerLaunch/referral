@@ -24,7 +24,9 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const adminClient = createAdminClient()
 
-    // Find approved submissions with stored files older than 7 days
+    // Find approved submissions with stored files where approval was 7+ days ago.
+    // Uses reviewed_at (approval date), not created_at (submission date), so documents
+    // that sat in PENDING for a while don't get purged immediately on approval.
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: submissions, error: fetchErr } = await adminClient
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       .select('id, storage_path')
       .eq('status', 'APPROVED')
       .not('storage_path', 'is', null)
-      .lt('created_at', sevenDaysAgo)
+      .lt('reviewed_at', sevenDaysAgo)
       .limit(500)
 
     if (fetchErr) {

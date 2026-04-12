@@ -18,11 +18,13 @@ export default function KycUploadClient() {
 
     if (!ALLOWED_TYPES.includes(selected.type)) {
       setError('Only JPEG and PNG images are accepted.')
+      setFile(null)
       return
     }
 
     if (selected.size > MAX_FILE_SIZE) {
       setError('File must be under 5MB.')
+      setFile(null)
       return
     }
 

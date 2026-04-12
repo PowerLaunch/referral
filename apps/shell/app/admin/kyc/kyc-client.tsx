@@ -255,9 +255,9 @@ export default function KycClient() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Loading...</td></tr>
+                <tr><td colSpan={activeTab === 'PENDING' ? 4 : 5} className="px-4 py-8 text-center text-muted-foreground">Loading...</td></tr>
               ) : submissions.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No {activeTab.toLowerCase()} submissions</td></tr>
+                <tr><td colSpan={activeTab === 'PENDING' ? 4 : 5} className="px-4 py-8 text-center text-muted-foreground">No {activeTab.toLowerCase()} submissions</td></tr>
               ) : (
                 submissions.map((s) => (
                   <tr key={s.id} className="border-b border-border/50 last:border-0 hover:bg-muted/50">

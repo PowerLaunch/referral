@@ -110,7 +110,7 @@ export async function POST(request: Request): Promise<Response> {
     // Guard A — Trust level (also fetches created_at for Guard E)
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('trust_level, created_at, payout_hold, status')
+      .select('trust_level, created_at, payout_hold, status, verified_kyc_hash')
       .eq('id', user.id)
       .single()
 
@@ -171,13 +171,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Guard D — KYC verification (wired in PR 5-C)
-    // Profile was already fetched in Guard A — reuse it to check verified_kyc_hash
-    const { data: kycProfile } = await adminClient
-      .from('profiles')
-      .select('verified_kyc_hash')
-      .eq('id', user.id)
-      .single()
-    if (!kycProfile?.verified_kyc_hash) {
+    // Reuses profile fetched in Guard A — no redundant query needed
+    if (!profile.verified_kyc_hash) {
       return Response.json(
         { error: 'KYC verification required before requesting payouts.' },
         { status: 403 }

@@ -46,8 +46,9 @@ export async function approveKyc(
   let kycHash: string
   try {
     kycHash = await hashKycId(rawIdNumber)
-  } catch (hashErr) {
-    console.error('KYC hash failed during approval:', hashErr)
+  } catch {
+    // Do not log the error object — hashKycId already logs a generic Vault failure message.
+    // Logging here could expose secret-handling internals on the sensitive KYC path.
     return { success: false, sybilDetected: false, error: 'Failed to hash ID number' }
   }
 
@@ -109,7 +110,11 @@ export async function approveKyc(
     }
   }
 
-  // Update submission to APPROVED
+  // Update submission to APPROVED — must succeed, otherwise roll back profile hash.
+  // This approximates atomicity: if submission update fails, we clear the profile
+  // hash so the payout gate doesn't pass on a stuck-PENDING submission.
+  // A proper Postgres RPC would be ideal (CLAUDE.md §4.12) but is deferred to a
+  // follow-up migration to keep this PR scoped to the application layer.
   const { error: approveErr } = await admin
     .from('kyc_submissions')
     .update({
@@ -122,7 +127,10 @@ export async function approveKyc(
     .eq('status', 'PENDING')
 
   if (approveErr) {
-    console.error('Failed to mark submission as approved:', approveErr)
+    console.error('Failed to mark submission as approved — rolling back profile hash:', approveErr)
+    // Rollback: clear the profile hash so payout gate doesn't pass
+    await admin.from('profiles').update({ verified_kyc_hash: null }).eq('id', userId)
+    return { success: false, sybilDetected: false, error: 'Failed to approve submission — please retry' }
   }
 
   // Audit log
