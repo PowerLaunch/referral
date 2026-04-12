@@ -81,12 +81,15 @@ export async function approveKyc(
 
       matchedUserId = (match?.id as string) ?? undefined
 
-      // Place both accounts in REVIEW_HOLD
+      // Place both accounts in REVIEW_HOLD — but never downgrade a BANNED user.
+      // A malicious actor could exploit Sybil detection to unban an account by
+      // submitting a KYC document with a banned user's ID number.
       for (const flagUserId of [userId, matchedUserId].filter((id): id is string => id !== undefined)) {
         const { error: holdErr } = await admin
           .from('profiles')
           .update({ trust_level: 'SUSPICIOUS', status: 'REVIEW_HOLD' })
           .eq('id', flagUserId)
+          .neq('trust_level', 'BANNED')
 
         if (holdErr) {
           console.error(`Failed to set REVIEW_HOLD for ${flagUserId}:`, holdErr)
@@ -184,7 +187,8 @@ export async function rejectKyc(
 
   const adminNotes = notes ? `${reason}: ${notes}` : reason
 
-  const { error: rejectErr } = await admin
+  // Use .select('id') to detect zero-row no-ops (concurrent processing)
+  const { data: rejectedRows, error: rejectErr } = await admin
     .from('kyc_submissions')
     .update({
       status: 'REJECTED',
@@ -194,9 +198,13 @@ export async function rejectKyc(
     })
     .eq('id', submissionId)
     .eq('status', 'PENDING')
+    .select('id')
 
   if (rejectErr) {
     return { success: false, error: 'Failed to reject submission' }
+  }
+  if (!rejectedRows || rejectedRows.length === 0) {
+    return { success: false, error: 'Submission was already processed by another admin' }
   }
 
   const { error: auditErr } = await admin.from('admin_audit_logs').insert({
