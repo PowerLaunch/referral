@@ -4,14 +4,13 @@ import { NextRequest } from 'next/server'
 import { severityPoints } from './risk-utils'
 import { z } from 'zod'
 
-const QuerySchema = z.object({
-  search: z.string().max(200).optional(),
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(50),
-  sortBy: z.enum(['created_at', 'trust_score', 'trust_level']).default('created_at'),
-  sortOrder: z.enum(['asc', 'desc']).default('desc'),
-  showTestAccounts: z.enum(['true', 'false']).default('false'),
-})
+// Validate each param independently so one invalid field doesn't discard valid ones
+const SearchSchema = z.string().max(200).optional()
+const PageSchema = z.coerce.number().int().positive()
+const LimitSchema = z.coerce.number().int().positive().max(100)
+const SortBySchema = z.enum(['created_at', 'trust_score', 'trust_level'])
+const SortOrderSchema = z.enum(['asc', 'desc'])
+const ShowTestSchema = z.enum(['true', 'false'])
 
 export async function GET(request: NextRequest): Promise<Response> {
   const auth = await requireAdmin()
@@ -20,32 +19,28 @@ export async function GET(request: NextRequest): Promise<Response> {
   const admin = createAdminClient()
 
   const searchParams = request.nextUrl.searchParams
-  const parsed = QuerySchema.safeParse({
-    search: searchParams.get('search') ?? undefined,
-    page: searchParams.get('page') ?? undefined,
-    limit: searchParams.get('limit') ?? undefined,
-    sortBy: searchParams.get('sortBy') ?? undefined,
-    sortOrder: searchParams.get('sortOrder') ?? undefined,
-    showTestAccounts: searchParams.get('showTestAccounts') ?? undefined,
-  })
-
-  const params = parsed.success ? parsed.data : { search: undefined, page: 1, limit: 50, sortBy: 'created_at' as const, sortOrder: 'desc' as const, showTestAccounts: 'false' as const }
-  const offset = (params.page - 1) * params.limit
+  const search = SearchSchema.safeParse(searchParams.get('search') ?? undefined).data
+  const page = PageSchema.safeParse(searchParams.get('page')).data ?? 1
+  const limit = LimitSchema.safeParse(searchParams.get('limit')).data ?? 50
+  const sortBy = SortBySchema.safeParse(searchParams.get('sortBy')).data ?? 'created_at'
+  const sortOrder = SortOrderSchema.safeParse(searchParams.get('sortOrder')).data ?? 'desc'
+  const showTestAccounts = ShowTestSchema.safeParse(searchParams.get('showTestAccounts')).data ?? 'false'
+  const offset = (page - 1) * limit
 
   // Fetch profiles with trust fields
   let query = admin
     .from('profiles')
     .select('id, email, trust_level, trust_score, trust_tier, status, is_vip, payout_hold, manual_payout_approval, is_honeypot, is_canary, created_at')
-    .order(params.sortBy, { ascending: params.sortOrder === 'asc' })
-    .range(offset, offset + params.limit) // fetch limit+1 to detect hasMore
+    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .range(offset, offset + limit) // fetch limit+1 to detect hasMore
 
   // Filter out honeypot/canary test accounts by default
-  if (params.showTestAccounts !== 'true') {
+  if (showTestAccounts !== 'true') {
     query = query.eq('is_honeypot', false).eq('is_canary', false)
   }
 
-  if (params.search?.trim()) {
-    query = query.ilike('email', `%${params.search.trim()}%`)
+  if (search?.trim()) {
+    query = query.ilike('email', `%${search.trim()}%`)
   }
 
   const { data: profiles, error: profilesError } = await query
@@ -54,12 +49,12 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Failed to fetch users' }, { status: 500 })
   }
 
-  const hasMore = (profiles?.length ?? 0) > params.limit
-  const sliced = (profiles ?? []).slice(0, params.limit)
+  const hasMore = (profiles?.length ?? 0) > limit
+  const sliced = (profiles ?? []).slice(0, limit)
   const userIds = sliced.map((p) => p.id as string)
 
   if (userIds.length === 0) {
-    return Response.json({ users: [], hasMore: false, page: params.page })
+    return Response.json({ users: [], hasMore: false, page })
   }
 
   // Batch fetch subscription statuses
@@ -121,5 +116,5 @@ export async function GET(request: NextRequest): Promise<Response> {
     created_at: p.created_at,
   }))
 
-  return Response.json({ users, hasMore, page: params.page })
+  return Response.json({ users, hasMore, page })
 }
