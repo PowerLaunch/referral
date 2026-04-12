@@ -55,15 +55,24 @@ export async function approveKyc(
     return { success: false, sybilDetected: false, error: 'Failed to hash ID number' }
   }
 
-  // Attempt to set verified_kyc_hash on profile
-  // UNIQUE constraint on verified_kyc_hash detects Sybil (R7)
-  const { error: profileErr } = await admin
+  // Attempt to set verified_kyc_hash on profile.
+  // .is('verified_kyc_hash', null) prevents concurrent approval from overwriting
+  // a hash already set by another admin — only set if currently null.
+  // UNIQUE constraint on verified_kyc_hash detects Sybil (R7).
+  const { data: hashRows, error: profileErr } = await admin
     .from('profiles')
     .update({ verified_kyc_hash: kycHash })
     .eq('id', userId)
+    .is('verified_kyc_hash', null)
+    .select('id')
 
   let sybilDetected = false
   let matchedUserId: string | undefined
+
+  // If zero rows matched, the hash was already set (concurrent approval) — not an error
+  if (!profileErr && hashRows && hashRows.length === 0) {
+    return { success: false, sybilDetected: false, error: 'KYC already verified by another admin' }
+  }
 
   if (profileErr) {
     if (profileErr.code === '23505') {
@@ -140,9 +149,9 @@ export async function approveKyc(
     if (approveErr) {
       console.error('Failed to mark submission as approved — rolling back profile hash:', approveErr)
     }
-    // Rollback: clear the profile hash so payout gate doesn't pass on a
-    // stuck-PENDING or concurrently-rejected submission.
-    await admin.from('profiles').update({ verified_kyc_hash: null }).eq('id', userId)
+    // Rollback: clear ONLY the hash THIS call set (match on kycHash value)
+    // so we don't accidentally destroy a concurrent admin's successfully committed hash.
+    await admin.from('profiles').update({ verified_kyc_hash: null }).eq('id', userId).eq('verified_kyc_hash', kycHash)
     // Preserve sybilDetected state so the admin sees the Sybil warning even on
     // submission update failure — fraud flags and REVIEW_HOLD were already applied.
     return {
