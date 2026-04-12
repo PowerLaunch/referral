@@ -19,9 +19,13 @@ interface ReferralEdge {
 
 /**
  * Check for existing unresolved graph_analysis_result with the same user set.
- * Uses .contains() (array superset check) in both directions to find exact matches.
+ * Uses .contains() (array superset check) + length equality for exact-match semantics.
  * This avoids the overlaps() problem where two distinct fraud rings sharing just
  * one member (e.g., [A,B,C] and [C,D,E]) would suppress the second detection.
+ *
+ * Note: when a pattern evolves between cron runs (e.g., gains a member), a new
+ * graph_analysis_result is created. Trust penalties for existing members are protected
+ * by partial unique indexes on trust_score_events (one penalty per user per reason).
  */
 async function hasExistingResult(
   adminClient: SupabaseClient,
@@ -796,8 +800,21 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
       referrerMap.get(rid)!.push(row.referee_id as string)
     }
 
-    for (const [referrerId, refereeIds] of referrerMap) {
-      if (refereeIds.length < 5) continue
+    for (const [referrerId, approxRefereeIds] of referrerMap) {
+      // Pre-filter using approximate count from global scan (may undercount due to 50K limit)
+      if (approxRefereeIds.length < 5) continue
+
+      // Focused re-query for accurate referee list (same pattern as detectStarClusters)
+      const { data: focusedRows, error: focusedErr } = await adminClient
+        .from('referrals')
+        .select('referee_id')
+        .eq('referrer_id', referrerId)
+        .in('status', ['PENDING', 'CONFIRMED'])
+        .gt('created_at', ninetyDaysAgo)
+        .limit(10000)
+
+      if (focusedErr || !focusedRows || focusedRows.length === 0) continue
+      const refereeIds = focusedRows.map((r) => r.referee_id as string)
 
       const vip = await isUserVip(adminClient, referrerId)
       const threshold = vip ? 20 : 5

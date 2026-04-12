@@ -21,6 +21,18 @@ CREATE INDEX IF NOT EXISTS idx_graph_pattern ON graph_analysis_results(pattern_t
 CREATE INDEX IF NOT EXISTS idx_graph_unresolved ON graph_analysis_results(resolved) WHERE resolved = false;
 CREATE INDEX IF NOT EXISTS idx_graph_user_ids ON graph_analysis_results USING GIN (user_ids);
 
+-- Partial unique indexes on trust_score_events for graph analysis reasons.
+-- Ensures one penalty per user per reason even when patterns evolve between cron runs
+-- (e.g., a star cluster gains a new referee → new graph_analysis_result, but existing
+-- members must not be re-penalized).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_star_cluster ON trust_score_events (user_id) WHERE reason = 'star_cluster';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_bipartite_swap ON trust_score_events (user_id) WHERE reason = 'bipartite_swap';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_bipartite_cycle ON trust_score_events (user_id) WHERE reason = 'bipartite_cycle';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_disconnected_clique ON trust_score_events (user_id) WHERE reason = 'disconnected_clique';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_fan_converge_fp ON trust_score_events (user_id) WHERE reason = 'fan_converge_fingerprint';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_fan_converge_ip ON trust_score_events (user_id) WHERE reason = 'fan_converge_ip';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tse_gen2_velocity ON trust_score_events (user_id) WHERE reason = 'gen2_velocity';
+
 -- Indexes on referrals for graph queries (may already exist)
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referee ON referrals(referee_id);
