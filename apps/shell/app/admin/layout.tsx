@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/admin/cashouts', label: 'Cashouts' },
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/disputes', label: 'Disputes' },
+  { href: '/admin/kyc', label: 'KYC' },
   { href: '/admin/influencers', label: 'Influencers' },
   { href: '/admin/honeypot', label: 'Honeypot' },
   { href: '/admin/seed', label: 'Seed Users' },

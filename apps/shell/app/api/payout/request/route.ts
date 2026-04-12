@@ -170,20 +170,19 @@ export async function POST(request: Request): Promise<Response> {
       )
     }
 
-    // Guard D — KYC verification (STUB)
-    // TODO: Wire real KYC check in PR 5-C. For now, skip this guard.
-    // Uncomment when KYC is live:
-    // const { data: kycProfile } = await adminClient
-    //   .from('profiles')
-    //   .select('verified_kyc_hash')
-    //   .eq('id', user.id)
-    //   .single()
-    // if (!kycProfile?.verified_kyc_hash) {
-    //   return Response.json({ error: 'KYC verification required' }, { status: 403 })
-    // }
-    const kycPassed = true // STUB — remove in PR 5-C
-    void kycPassed
-
+    // Guard D — KYC verification (wired in PR 5-C)
+    // Profile was already fetched in Guard A — reuse it to check verified_kyc_hash
+    const { data: kycProfile } = await adminClient
+      .from('profiles')
+      .select('verified_kyc_hash')
+      .eq('id', user.id)
+      .single()
+    if (!kycProfile?.verified_kyc_hash) {
+      return Response.json(
+        { error: 'KYC verification required before requesting payouts.' },
+        { status: 403 }
+      )
+    }
     // Guard E — Account age (reuse created_at from Guard A result)
     const accountAgeMs = Date.now() - new Date(profile.created_at).getTime()
     if (accountAgeMs < 7 * MS_PER_DAY) {
