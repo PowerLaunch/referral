@@ -143,7 +143,16 @@ export async function approveKyc(
     // Rollback: clear the profile hash so payout gate doesn't pass on a
     // stuck-PENDING or concurrently-rejected submission.
     await admin.from('profiles').update({ verified_kyc_hash: null }).eq('id', userId)
-    return { success: false, sybilDetected: false, error: 'Submission was already processed or failed — please retry' }
+    // Preserve sybilDetected state so the admin sees the Sybil warning even on
+    // submission update failure — fraud flags and REVIEW_HOLD were already applied.
+    return {
+      success: false,
+      sybilDetected,
+      matchedUserId,
+      error: sybilDetected
+        ? 'Sybil detected and flagged, but submission update failed — check both accounts manually'
+        : 'Submission was already processed or failed — please retry',
+    }
   }
 
   // Audit log
