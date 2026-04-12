@@ -27,15 +27,19 @@ export async function toggleVip(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'toggle_vip',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ is_vip: !newValue }),
-    after_value: JSON.stringify({ is_vip: newValue }),
-    details: { toggled_to: newValue },
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'toggle_vip',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ is_vip: !newValue }),
+      after_value: JSON.stringify({ is_vip: newValue }),
+      details: { toggled_to: newValue },
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for toggle_vip:', auditErr)
+  }
 
   return { ok: true }
 }
@@ -64,14 +68,18 @@ export async function freezeAccount(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'freeze_account',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ trust_level: beforeTrust }),
-    after_value: JSON.stringify({ trust_level: 'BANNED' }),
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'freeze_account',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ trust_level: beforeTrust }),
+      after_value: JSON.stringify({ trust_level: 'BANNED' }),
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for freeze_account:', auditErr)
+  }
 
   await triggerE5(userId)
 
@@ -102,14 +110,18 @@ export async function unfreezeAccount(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'unfreeze_account',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ trust_level: beforeTrust }),
-    after_value: JSON.stringify({ trust_level: 'CLEAN' }),
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'unfreeze_account',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ trust_level: beforeTrust }),
+      after_value: JSON.stringify({ trust_level: 'CLEAN' }),
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for unfreeze_account:', auditErr)
+  }
 
   return { ok: true }
 }
@@ -138,14 +150,18 @@ export async function flagSuspicious(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'flag_suspicious',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ trust_level: beforeTrust }),
-    after_value: JSON.stringify({ trust_level: 'SUSPICIOUS' }),
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'flag_suspicious',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ trust_level: beforeTrust }),
+      after_value: JSON.stringify({ trust_level: 'SUSPICIOUS' }),
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for flag_suspicious:', auditErr)
+  }
 
   return { ok: true }
 }
@@ -174,14 +190,18 @@ export async function unflagSuspicious(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'unflag_suspicious',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ trust_level: beforeTrust }),
-    after_value: JSON.stringify({ trust_level: 'CLEAN' }),
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'unflag_suspicious',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ trust_level: beforeTrust }),
+      after_value: JSON.stringify({ trust_level: 'CLEAN' }),
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for unflag_suspicious:', auditErr)
+  }
 
   return { ok: true }
 }
@@ -249,15 +269,19 @@ export async function togglePayoutHold(
 
   if (error) return { ok: false, error: error.message }
 
-  await admin.from('admin_audit_logs').insert({
-    admin_user_id: adminId,
-    action: 'toggle_payout_hold',
-    target_type: 'user',
-    target_id: userId,
-    before_value: JSON.stringify({ payout_hold: !newValue }),
-    after_value: JSON.stringify({ payout_hold: newValue }),
-    details: { toggled_to: newValue },
-  })
+  try {
+    await admin.from('admin_audit_logs').insert({
+      admin_user_id: adminId,
+      action: 'toggle_payout_hold',
+      target_type: 'user',
+      target_id: userId,
+      before_value: JSON.stringify({ payout_hold: !newValue }),
+      after_value: JSON.stringify({ payout_hold: newValue }),
+      details: { toggled_to: newValue },
+    })
+  } catch (auditErr) {
+    console.error('Audit log failed for toggle_payout_hold:', auditErr)
+  }
 
   return { ok: true }
 }
