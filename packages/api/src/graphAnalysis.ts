@@ -17,26 +17,36 @@ interface ReferralEdge {
 
 // --- Shared helpers ---
 
-/** Check for existing unresolved graph_analysis_result with overlapping user_ids */
+/**
+ * Check for existing unresolved graph_analysis_result with the same user set.
+ * Uses .contains() (array superset check) in both directions to find exact matches.
+ * This avoids the overlaps() problem where two distinct fraud rings sharing just
+ * one member (e.g., [A,B,C] and [C,D,E]) would suppress the second detection.
+ */
 async function hasExistingResult(
   adminClient: SupabaseClient,
   patternType: string,
   userIds: string[]
 ): Promise<boolean> {
+  // contains(user_ids, userIds) checks if stored array is a superset of the input.
+  // For exact match on sorted arrays, this plus a length check is sufficient since
+  // we always sort user_ids before storing.
   const { data, error } = await adminClient
     .from('graph_analysis_results')
-    .select('id')
+    .select('id, user_ids')
     .eq('pattern_type', patternType)
     .eq('resolved', false)
-    .overlaps('user_ids', userIds)
-    .limit(1)
+    .contains('user_ids', userIds)
+    .limit(10)
 
   if (error) {
-    console.error(`graph_analysis_results overlap check failed for ${patternType}:`, error)
+    console.error(`graph_analysis_results idempotency check failed for ${patternType}:`, error)
     // Fail closed: treat as existing to avoid duplicate flagging
     return true
   }
-  return (data?.length ?? 0) > 0
+
+  // Filter to exact matches (same length = same set, since both are sorted and deduplicated)
+  return (data ?? []).some((row) => (row.user_ids as string[]).length === userIds.length)
 }
 
 /** Check if a user is VIP. Returns false on error (fail closed = stricter rules). */
