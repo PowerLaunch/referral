@@ -20,7 +20,8 @@
     "./cronHealth": "./src/cronHealth.ts",
     "./trustScore": "./src/trustScore.ts",
     "./ipClassification": "./src/ipClassification.ts",
-    "./sourceClassification": "./src/sourceClassification.ts"
+    "./sourceClassification": "./src/sourceClassification.ts",
+    "./graphAnalysis": "./src/graphAnalysis.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
