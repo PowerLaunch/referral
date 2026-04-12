@@ -42,10 +42,13 @@ export async function approveKyc(
 
   const userId = submission.user_id as string
 
-  // Hash the ID number — never store or log raw value
+  // Canonicalize the ID number before hashing to prevent casing/spacing/separator
+  // drift from producing different HMACs for the same document (weakens R7 detection).
+  // Never store or log the raw or canonicalized value.
+  const canonicalId = rawIdNumber.trim().toUpperCase().replace(/[\s\-\.]+/g, '')
   let kycHash: string
   try {
-    kycHash = await hashKycId(rawIdNumber)
+    kycHash = await hashKycId(canonicalId)
   } catch {
     // Do not log the error object — hashKycId already logs a generic Vault failure message.
     // Logging here could expose secret-handling internals on the sensitive KYC path.
@@ -115,7 +118,10 @@ export async function approveKyc(
   // hash so the payout gate doesn't pass on a stuck-PENDING submission.
   // A proper Postgres RPC would be ideal (CLAUDE.md §4.12) but is deferred to a
   // follow-up migration to keep this PR scoped to the application layer.
-  const { error: approveErr } = await admin
+  // Use .select('id') so Supabase returns the matched rows — without it,
+  // a zero-row update (e.g., concurrent rejection) returns error: null,
+  // and the rollback never triggers.
+  const { data: approvedRows, error: approveErr } = await admin
     .from('kyc_submissions')
     .update({
       status: 'APPROVED',
@@ -125,12 +131,16 @@ export async function approveKyc(
     })
     .eq('id', submissionId)
     .eq('status', 'PENDING')
+    .select('id')
 
-  if (approveErr) {
-    console.error('Failed to mark submission as approved — rolling back profile hash:', approveErr)
-    // Rollback: clear the profile hash so payout gate doesn't pass
+  if (approveErr || !approvedRows || approvedRows.length === 0) {
+    if (approveErr) {
+      console.error('Failed to mark submission as approved — rolling back profile hash:', approveErr)
+    }
+    // Rollback: clear the profile hash so payout gate doesn't pass on a
+    // stuck-PENDING or concurrently-rejected submission.
     await admin.from('profiles').update({ verified_kyc_hash: null }).eq('id', userId)
-    return { success: false, sybilDetected: false, error: 'Failed to approve submission — please retry' }
+    return { success: false, sybilDetected: false, error: 'Submission was already processed or failed — please retry' }
   }
 
   // Audit log

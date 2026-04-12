@@ -75,7 +75,12 @@ export async function GET(request: NextRequest): Promise<Response> {
       cleaned++
     }
 
-    await recordCronSuccess('kyc-cleanup', adminClient, process.env.BETTERSTACK_HEARTBEAT_KYC_CLEANUP)
+    // Only record success heartbeat if there were no errors — don't mask failures
+    if (errors === 0) {
+      await recordCronSuccess('kyc-cleanup', adminClient, process.env.BETTERSTACK_HEARTBEAT_KYC_CLEANUP)
+    } else {
+      console.warn(`KYC cleanup completed with ${errors} errors out of ${cleaned + errors} items`)
+    }
 
     return Response.json({ cleaned, errors })
   } catch (error) {
