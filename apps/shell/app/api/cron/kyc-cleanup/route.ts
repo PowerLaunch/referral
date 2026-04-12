@@ -24,15 +24,16 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const adminClient = createAdminClient()
 
-    // Find approved submissions with stored files where approval was 7+ days ago.
-    // Uses reviewed_at (approval date), not created_at (submission date), so documents
-    // that sat in PENDING for a while don't get purged immediately on approval.
+    // Find reviewed submissions (APPROVED or REJECTED) with stored files where
+    // review was 7+ days ago. Rejected images also need cleanup — they contain
+    // sensitive PII (passport photos) and must not accumulate indefinitely.
+    // Uses reviewed_at (review date), not created_at (submission date).
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: submissions, error: fetchErr } = await adminClient
       .from('kyc_submissions')
       .select('id, storage_path')
-      .eq('status', 'APPROVED')
+      .in('status', ['APPROVED', 'REJECTED'])
       .not('storage_path', 'is', null)
       .lt('reviewed_at', sevenDaysAgo)
       .limit(500)
