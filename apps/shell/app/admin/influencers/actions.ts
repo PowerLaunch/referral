@@ -21,10 +21,12 @@ async function requireAdmin(): Promise<string> {
 }
 
 function generateCode(): string {
+  // crypto.randomBytes for security-relevant operations — never Math.random (CLAUDE.md §4.14)
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = ''
   for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
+    result += chars.charAt((bytes[i] ?? 0) % chars.length)
   }
   return result
 }
@@ -82,7 +84,7 @@ export async function createInfluencerCode(
     return { ok: false, error: `Failed to create: ${error.message}` }
   }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'INFLUENCER_CODE_CREATED',
     target_type: 'influencer_code',
@@ -95,6 +97,7 @@ export async function createInfluencerCode(
       lock_bypass: input.lock_bypass,
     },
   })
+  if (auditErr) console.error('Audit log failed for INFLUENCER_CODE_CREATED:', auditErr)
 
   return { ok: true, id: data.id }
 }
@@ -163,7 +166,7 @@ export async function updateInfluencerCode(
     return { ok: false, error: `Update failed: ${error.message}` }
   }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr2 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'INFLUENCER_CODE_UPDATED',
     target_type: 'influencer_code',
@@ -172,6 +175,7 @@ export async function updateInfluencerCode(
     after_value: JSON.stringify(afterValue),
     details: { changed_fields: Object.keys(changes) },
   })
+  if (auditErr2) console.error('Audit log failed for INFLUENCER_CODE_UPDATED:', auditErr2)
 
   return { ok: true }
 }
@@ -206,7 +210,7 @@ export async function deactivateInfluencerCode(
     return { ok: false, error: `Deactivate failed: ${error.message}` }
   }
 
-  await admin.from('admin_audit_logs').insert({
+  const { error: auditErr3 } = await admin.from('admin_audit_logs').insert({
     admin_user_id: adminId,
     action: 'INFLUENCER_CODE_DEACTIVATED',
     target_type: 'influencer_code',
@@ -215,6 +219,7 @@ export async function deactivateInfluencerCode(
     after_value: JSON.stringify({ active: false }),
     details: { deactivated: true },
   })
+  if (auditErr3) console.error('Audit log failed for INFLUENCER_CODE_DEACTIVATED:', auditErr3)
 
   return { ok: true }
 }
