@@ -3,9 +3,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
-const PageSchema = z.coerce.number().int().positive()
-const LimitSchema = z.coerce.number().int().positive().max(100)
-const SearchSchema = z.string().max(200).optional()
+const QuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  search: z.string().max(200).optional(),
+})
 
 export async function GET(request: NextRequest): Promise<Response> {
   const result = await requireAdmin()
@@ -14,9 +16,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   const admin = createAdminClient()
 
   const searchParams = request.nextUrl.searchParams
-  const page = PageSchema.safeParse(searchParams.get('page')).data ?? 1
-  const limit = LimitSchema.safeParse(searchParams.get('limit')).data ?? 50
-  const search = SearchSchema.safeParse(searchParams.get('search') ?? undefined).data
+  const parsed = QuerySchema.safeParse({
+    page: searchParams.get('page') ?? undefined,
+    limit: searchParams.get('limit') ?? undefined,
+    search: searchParams.get('search') ?? undefined,
+  })
+
+  if (!parsed.success) {
+    return Response.json({ error: 'Invalid query parameters', details: parsed.error.flatten() }, { status: 400 })
+  }
+
+  const { page, limit, search } = parsed.data
   const offset = (page - 1) * limit
 
   let query = admin
