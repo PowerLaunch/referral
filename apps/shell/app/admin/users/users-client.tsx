@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { riskColor } from './utils'
 
@@ -55,6 +55,8 @@ export default function UsersClient() {
   const [showTestAccounts, setShowTestAccounts] = useState(false)
   const [sortBy, setSortBy] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  // Track the last submitted search to avoid sending uncommitted input on sort/filter changes
+  const appliedSearch = useRef('')
 
   const fetchUsers = useCallback(async (searchTerm: string, pageNum: number) => {
     setLoading(true)
@@ -84,11 +86,12 @@ export default function UsersClient() {
   }, [showTestAccounts, sortBy, sortOrder])
 
   useEffect(() => {
-    void fetchUsers(search, page)
-  }, [fetchUsers, page, sortBy, sortOrder, showTestAccounts]) // eslint-disable-line react-hooks/exhaustive-deps -- search triggers via handleSearch
+    void fetchUsers(appliedSearch.current, page)
+  }, [fetchUsers, page, sortBy, sortOrder, showTestAccounts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
+    appliedSearch.current = search
     setPage(1)
     void fetchUsers(search, 1)
   }
