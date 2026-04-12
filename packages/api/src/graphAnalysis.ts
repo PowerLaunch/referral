@@ -208,7 +208,8 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
 
       if (refError || !refereeRows || refereeRows.length === 0) continue
 
-      const refereeIds = refereeRows.map((r) => r.referee_id as string)
+      // Deduplicate: a referee can have multiple referral rows (e.g., PENDING + CONFIRMED)
+      const refereeIds = [...new Set(refereeRows.map((r) => r.referee_id as string))]
 
       // VIP threshold check uses accurate refereeIds.length (not the approximate refCount
       // from the global scan which can undercount when the 50K limit truncates results).
@@ -695,7 +696,9 @@ export async function detectFanOutConverge(adminClient: SupabaseClient): Promise
         if (referrerIds.length < 3) continue
 
         const allIds = [...new Set([...referrerIds, ...refIds])].sort()
-        const key = JSON.stringify(allIds)
+        // Include signalType in key so fingerprint and IP convergence on the same user set
+        // are tracked independently — both are distinct fraud evidence dimensions.
+        const key = `${signalType}:${JSON.stringify(allIds)}`
         if (processedSets.has(key)) continue
         processedSets.add(key)
 
@@ -814,7 +817,8 @@ export async function detectGen2Velocity(adminClient: SupabaseClient): Promise<P
         .limit(10000)
 
       if (focusedErr || !focusedRows || focusedRows.length === 0) continue
-      const refereeIds = focusedRows.map((r) => r.referee_id as string)
+      // Deduplicate: a referee can have multiple referral rows (e.g., PENDING + CONFIRMED)
+      const refereeIds = [...new Set(focusedRows.map((r) => r.referee_id as string))]
 
       const vip = await isUserVip(adminClient, referrerId)
       const threshold = vip ? 20 : 5
