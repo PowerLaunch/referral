@@ -178,13 +178,12 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
     }
 
     for (const [referrerId, refCount] of refCounts) {
+      // Pre-filter using approximate count from global scan (may undercount due to 50K limit).
+      // Non-VIP threshold of 15 is used as a cheap filter — the accurate VIP threshold
+      // check happens below after the focused per-referrer query returns exact counts.
       if (refCount < 15) continue
 
-      const vip = await isUserVip(adminClient, referrerId)
-      const threshold = vip ? 50 : 15
-      if (refCount < threshold) continue
-
-      // Get all referee_ids for this referrer
+      // Get all referee_ids for this referrer (accurate, focused query)
       const { data: refereeRows, error: refError } = await adminClient
         .from('referrals')
         .select('referee_id')
@@ -196,6 +195,12 @@ export async function detectStarClusters(adminClient: SupabaseClient): Promise<P
       if (refError || !refereeRows || refereeRows.length === 0) continue
 
       const refereeIds = refereeRows.map((r) => r.referee_id as string)
+
+      // VIP threshold check uses accurate refereeIds.length (not the approximate refCount
+      // from the global scan which can undercount when the 50K limit truncates results).
+      const vip = await isUserVip(adminClient, referrerId)
+      const threshold = vip ? 50 : 15
+      if (refereeIds.length < threshold) continue
 
       // Check how many referees have zero outgoing referrals.
       // Filter by status to exclude REJECTED/VOIDED — consistent with all other queries.
