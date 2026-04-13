@@ -21,7 +21,8 @@
     "./trustScore": "./src/trustScore.ts",
     "./ipClassification": "./src/ipClassification.ts",
     "./sourceClassification": "./src/sourceClassification.ts",
-    "./graphAnalysis": "./src/graphAnalysis.ts"
+    "./graphAnalysis": "./src/graphAnalysis.ts",
+    "./kycApproval": "./src/kycApproval.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
