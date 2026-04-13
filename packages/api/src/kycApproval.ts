@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { hashKycId } from './kycHash'
+import { checkIdentityCluster } from './fraudRules'
 
 interface ApproveResult {
   success: boolean
@@ -14,8 +15,8 @@ interface RejectResult {
 }
 
 /**
- * Approve a KYC submission: hash the ID number, check for Sybil clusters,
- * and update the submission + profile.
+ * Approve a KYC submission: hash the ID number, check for Sybil clusters
+ * via the canonical checkIdentityCluster (R7), and update the submission.
  *
  * Raw ID number is NEVER stored or logged — only the HMAC hash is persisted.
  */
@@ -55,84 +56,25 @@ export async function approveKyc(
     return { success: false, sybilDetected: false, error: 'Failed to hash ID number' }
   }
 
-  // Attempt to set verified_kyc_hash on profile.
-  // .is('verified_kyc_hash', null) prevents concurrent approval from overwriting
-  // a hash already set by another admin — only set if currently null.
-  // UNIQUE constraint on verified_kyc_hash detects Sybil (R7).
-  const { data: hashRows, error: profileErr } = await admin
-    .from('profiles')
-    .update({ verified_kyc_hash: kycHash })
-    .eq('id', userId)
-    .is('verified_kyc_hash', null)
-    .select('id')
-
+  // Use the canonical checkIdentityCluster from fraudRules.ts (R7).
+  // This handles: hash update on profile, UNIQUE constraint Sybil detection,
+  // REVIEW_HOLD + CRITICAL fraud flags, trust score adjustments (-300),
+  // and voidPendingCredits for both accounts on collision.
   let sybilDetected = false
   let matchedUserId: string | undefined
 
-  // If zero rows matched, the hash was already set (concurrent approval) — not an error
-  if (!profileErr && hashRows && hashRows.length === 0) {
-    return { success: false, sybilDetected: false, error: 'KYC already verified by another admin' }
-  }
-
-  if (profileErr) {
-    if (profileErr.code === '23505') {
-      // Sybil detected — another user has the same KYC hash
-      sybilDetected = true
-
-      // Find the matching user
-      const { data: match } = await admin
-        .from('profiles')
-        .select('id')
-        .eq('verified_kyc_hash', kycHash)
-        .neq('id', userId)
-        .limit(1)
-        .maybeSingle()
-
-      matchedUserId = (match?.id as string) ?? undefined
-
-      // Place both accounts in REVIEW_HOLD — but never downgrade a BANNED user.
-      // A malicious actor could exploit Sybil detection to unban an account by
-      // submitting a KYC document with a banned user's ID number.
-      for (const flagUserId of [userId, matchedUserId].filter((id): id is string => id !== undefined)) {
-        const { error: holdErr } = await admin
-          .from('profiles')
-          .update({ trust_level: 'SUSPICIOUS', status: 'REVIEW_HOLD' })
-          .eq('id', flagUserId)
-          .neq('trust_level', 'BANNED')
-
-        if (holdErr) {
-          console.error(`Failed to set REVIEW_HOLD for ${flagUserId}:`, holdErr)
-        }
-
-        // Insert CRITICAL fraud flag
-        const { error: flagErr } = await admin.from('fraud_flags').insert({
-          user_id: flagUserId,
-          rule_triggered: 'R7_SYBIL',
-          severity: 'CRITICAL',
-          details: {
-            kyc_hash_collision: true,
-            submission_id: submissionId,
-            matched_user_id: flagUserId === userId ? matchedUserId : userId,
-          },
-        })
-        if (flagErr && flagErr.code !== '23505') {
-          console.error(`Sybil fraud flag insert failed for ${flagUserId}:`, flagErr)
-        }
-      }
-    } else {
-      console.error('Failed to update profile KYC hash:', profileErr)
-      return { success: false, sybilDetected: false, error: 'Failed to update profile' }
-    }
+  try {
+    const clusterResult = await checkIdentityCluster(userId, kycHash)
+    sybilDetected = clusterResult.isCluster
+    matchedUserId = clusterResult.conflictingUserId
+  } catch (clusterErr) {
+    console.error('checkIdentityCluster failed:', clusterErr)
+    return { success: false, sybilDetected: false, error: 'Identity verification failed — please retry' }
   }
 
   // Update submission to APPROVED — must succeed, otherwise roll back profile hash.
-  // This approximates atomicity: if submission update fails, we clear the profile
-  // hash so the payout gate doesn't pass on a stuck-PENDING submission.
-  // A proper Postgres RPC would be ideal (CLAUDE.md §4.12) but is deferred to a
-  // follow-up migration to keep this PR scoped to the application layer.
-  // Use .select('id') so Supabase returns the matched rows — without it,
-  // a zero-row update (e.g., concurrent rejection) returns error: null,
-  // and the rollback never triggers.
+  // Use .select('id') so Supabase returns matched rows — without it, a zero-row
+  // update (e.g., concurrent rejection) returns error: null.
   const { data: approvedRows, error: approveErr } = await admin
     .from('kyc_submissions')
     .update({
