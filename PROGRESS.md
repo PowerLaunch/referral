@@ -225,3 +225,4 @@ Complete these before starting PR 5-A:
 | 2026-04-12 | feat/admin-influencers | PR #39 IN PROGRESS | feat: influencer code management (Phase 7-G) |
 | 2026-04-12 | feat/admin-influencers | PR #39 merged | feat: influencer code management (Phase 7-G) |
 | 2026-04-12 | feat/kyc-manual | PR #40 IN PROGRESS | feat: manual KYC upload + approval + cleanup (Phase 5-C) |
+| 2026-04-13 | feat/kyc-manual | PR #40 merged | feat: manual KYC upload + approval + cleanup cron (Phase 5-C) |
