@@ -76,6 +76,7 @@ export default function KycClient() {
     setDetailLoading(true)
     setMessage(null)
     setIdNumber('')
+    setRejectReason(REJECT_REASONS[0])
     setRejectNotes('')
     try {
       const res = await fetch(`/api/admin/kyc/${id}`)
